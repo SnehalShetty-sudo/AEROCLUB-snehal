@@ -161,10 +161,13 @@ def main():
             
             for d in detections:
                 if d.class_name == "person":
-                    is_new = memory_grid.add_detection(
+                    res = memory_grid.add_detection(
                         tel["lat"], tel["lon"], tel["alt"], tel["heading"],
                         frame.shape[1], frame.shape[0], d.bbox
                     )
+                    if res.get("is_new"):
+                        from dashboard.server import push_new_detection
+                        push_new_detection(res)
             
             # Annotate
             annotated = annotate_frame(frame, detections)
@@ -178,7 +181,7 @@ def main():
                 
             if now - last_detection_push >= 0.2:
                 # Send the cumulative unique count!
-                push_detection_stats({'counts': {'Unique Persons': memory_grid.get_unique_count()}})
+                push_detection_stats({'counts': {'person': memory_grid.get_unique_count()}})
                 last_detection_push = now
                 
             # FPS

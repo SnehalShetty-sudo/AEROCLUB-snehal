@@ -39,9 +39,7 @@
                 </div>
                 <div class="progress-bar-bg">
                     <div id="progress-fill" class="progress-bar-fill" style="width: 0%"></div>
-                </div>
-            </div>
-        </div>
+
 
         <!-- Right Panel: Stats & Telemetry -->
         <div class="side-panel">
@@ -103,12 +101,22 @@
                 </div>
             </div>
 
-            <!-- Event Log -->
+            <!-- Live Detection Log (Replaces generic event log) -->
             <div class="card event-log-card">
-                <div class="card-header">Event Log</div>
-                <div class="event-log" id="event-log">
-                    <!-- Logs go here -->
-                    <div class="log-item">System initialized.</div>
+                <div class="card-header">Live Detection Log</div>
+                <div class="event-log" id="event-log" style="padding: 0;">
+                    <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;">
+                        <thead style="background: rgba(0,0,0,0.5); position: sticky; top: 0;">
+                            <tr>
+                                <th style="padding: 6px;">Time</th>
+                                <th style="padding: 6px;">Cell</th>
+                                <th style="padding: 6px;">Coordinates</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detection-log-body">
+                            <!-- Detections go here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

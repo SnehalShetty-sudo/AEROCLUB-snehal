@@ -90,16 +90,24 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on('detection_update', (data) => {
         // data.counts is a dict e.g. {"person": 5, "triangle": 1}
         const counts = data.counts || {};
-        
-        countPerson.textContent = counts['person'] || 0;
-        countTriangle.textContent = counts['triangle'] || 0;
-        countSquare.textContent = counts['square'] || 0;
-        countRectangle.textContent = counts['rectangle'] || 0;
-        
-        let total = 0;
-        for (const val of Object.values(counts)) {
-            total += val;
+        // Use max to ensure counts only go UP (permanent running total for the judges)
+        if (counts['person'] !== undefined) {
+            countPerson.textContent = Math.max(parseInt(countPerson.textContent) || 0, counts['person']);
         }
+        if (counts['triangle'] !== undefined) {
+            countTriangle.textContent = Math.max(parseInt(countTriangle.textContent) || 0, counts['triangle']);
+        }
+        if (counts['square'] !== undefined) {
+            countSquare.textContent = Math.max(parseInt(countSquare.textContent) || 0, counts['square']);
+        }
+        if (counts['rectangle'] !== undefined) {
+            countRectangle.textContent = Math.max(parseInt(countRectangle.textContent) || 0, counts['rectangle']);
+        }
+        
+        let total = parseInt(countPerson.textContent) + 
+                    parseInt(countTriangle.textContent) + 
+                    parseInt(countSquare.textContent) + 
+                    parseInt(countRectangle.textContent);
         countTotal.textContent = total;
 
         // Log newly found items
@@ -111,6 +119,34 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
         lastCounts = {...counts};
+    });
+
+    // Detailed Geotagged Detections
+    const detectionLogBody = document.getElementById('detection-log-body');
+    socket.on('new_detection', (data) => {
+        // Create a new row for the detection log table
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+        
+        const timeCell = document.createElement('td');
+        timeCell.style.padding = '6px';
+        timeCell.textContent = data.time;
+        
+        const cellIdCell = document.createElement('td');
+        cellIdCell.style.padding = '6px';
+        cellIdCell.innerHTML = `<span class="badge-success" style="padding: 2px 6px; border-radius: 4px;">${data.cell_id}</span>`;
+        
+        const coordsCell = document.createElement('td');
+        coordsCell.style.padding = '6px';
+        coordsCell.style.fontFamily = 'monospace';
+        coordsCell.textContent = `${data.lat}, ${data.lon}`;
+        
+        row.appendChild(timeCell);
+        row.appendChild(cellIdCell);
+        row.appendChild(coordsCell);
+        
+        // Add to the top of the table
+        detectionLogBody.insertBefore(row, detectionLogBody.firstChild);
     });
 
     // Buttons

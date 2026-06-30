@@ -108,6 +108,13 @@ def push_detection_stats(data: dict):
     """Push detection statistics to connected clients."""
     socketio.emit('detection_update', data)
 
+def push_new_detection(detection_data: dict):
+    """Push detailed new detection data (Lat/Lon/Cell) to connected clients."""
+    # Add a timestamp so the frontend doesn't have to calculate it
+    import datetime
+    detection_data["time"] = datetime.datetime.now().strftime("%H:%M:%S")
+    socketio.emit('new_detection', detection_data)
+
 def start_server_in_thread():
     """Start the Flask-SocketIO server in a background thread."""
     def run():

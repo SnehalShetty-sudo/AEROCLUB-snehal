@@ -26,14 +26,35 @@ The repository is broken down into modular subsystems, ensuring that the AI, the
 /
 ├── config.py             # The master switch (SIMULATION_MODE = True/False)
 ├── main.py               # The primary execution script
+├── requirements.txt      # Python dependencies list
+│
 ├── /dashboard            # Web UI files (HTML/CSS/JS)
+│   ├── server.py         # Flask + Socket.IO backend
+│   ├── /templates
+│   │   └── index.html    # The main HTML structure
+│   └── /static
+│       ├── /css
+│       │   └── style.css # Styling and colors
+│       └── /js
+│           └── app.js    # Logic for updating numbers dynamically
+│
 ├── /detection            # YOLOv8 and AI models
+│   ├── __init__.py
+│   ├── cpu_detector.py   # YOLOv8 on standard CPU
+│   ├── hailo_detector.py # YOLOv8 on Hailo AI Accelerator
+│   └── shape_detector.py # OpenCV traditional math detector
+│
 ├── /mission              # Waypoint and flight path logic
+│   ├── path_planner.py   # Math for drawing lawnmower grids
+│   ├── mission_manager.py# Uploads waypoints to the drone
+│   └── memory_grid.py    # Math for exact Geotagging and coordinates
+│
 ├── /telemetry            # MAVLink communication scripts
+│   └── mavlink_bridge.py # Connects Python to the Pixhawk
 │
 └── /gazebo               # [OPTIONAL] Kept completely separate for testers!
-    ├── isro_mars.sdf
-    └── gazebo-iris-gimbal.parm
+    ├── isro_mars.sdf     # 3D simulator world
+    └── gazebo-iris-gimbal.parm # Drone physics file
 ```
 
 ### 1. The Core Brain

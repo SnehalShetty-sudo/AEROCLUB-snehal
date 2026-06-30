@@ -22,6 +22,20 @@ By changing a single variable (`SIMULATION_MODE = True/False`) inside `config.py
 
 The repository is broken down into modular subsystems, ensuring that the AI, the flight controller, and the web interface never block or slow each other down.
 
+```text
+/
+├── config.py             # The master switch (SIMULATION_MODE = True/False)
+├── main.py               # The primary execution script
+├── /dashboard            # Web UI files (HTML/CSS/JS)
+├── /detection            # YOLOv8 and AI models
+├── /mission              # Waypoint and flight path logic
+├── /telemetry            # MAVLink communication scripts
+│
+└── /gazebo               # [OPTIONAL] Kept completely separate for testers!
+    ├── isro_mars.sdf
+    └── gazebo-iris-gimbal.parm
+```
+
 ### 1. The Core Brain
 * **`config.py`**: The master configuration file. This is where you set the global Geofence coordinates, camera resolution, IP addresses, and toggle the `SIMULATION_MODE`. You only ever need to edit this file to configure a flight.
 * **`main.py`**: The orchestrator. It does not do the heavy lifting itself; instead, it starts the background threads for the Web Server, the Camera, and the AI model. Its main `while True` loop grabs the latest camera frame, passes it to the AI, merges the detections with the telemetry from the drone, and pushes everything to the dashboard.

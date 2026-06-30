@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Detection Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Chart.js for optional graphing later if needed -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> -->
+</head>
+<body>
+    <div class="top-bar">
+        <div class="title">🚁 Aerial Detection System</div>
+        <div class="status-indicators">
+            <span id="conn-status" class="status badge-warning">Connecting...</span>
+            <span id="arm-status" class="status badge-danger">Disarmed</span>
+            <span id="mode-status" class="status badge-info">MANUAL</span>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Left Panel: Video Feed -->
+        <div class="video-panel card">
+            <div class="card-header">Live Feed (annotated)</div>
+            <div class="video-wrapper">
+                <img id="video-stream" src="/video_feed" alt="Video stream offline">
+            </div>
+            <div class="mission-controls">
+                <button id="btn-start" class="btn btn-success">Start Mission</button>
+                <button id="btn-pause" class="btn btn-warning">Pause</button>
+                <button id="btn-rtl" class="btn btn-danger">RTL (Abort)</button>
+            </div>
+            <div class="mission-progress-container">
+                <div class="progress-info">
+                    <span>Mission Progress</span>
+                    <span id="wp-text">WP: 0/0</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="progress-fill" class="progress-bar-fill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Stats & Telemetry -->
+        <div class="side-panel">
+            
+            <!-- Detection Summary -->
+            <div class="card">
+                <div class="card-header">Detection Summary</div>
+                <div class="stats-grid">
+                    <div class="stat-box person">
+                        <div class="stat-icon">👤</div>
+                        <div class="stat-val" id="count-person">0</div>
+                        <div class="stat-label">Persons</div>
+                    </div>
+                    <div class="stat-box shape-tri">
+                        <div class="stat-icon">🔺</div>
+                        <div class="stat-val" id="count-triangle">0</div>
+                        <div class="stat-label">Triangles</div>
+                    </div>
+                    <div class="stat-box shape-sq">
+                        <div class="stat-icon">🟦</div>
+                        <div class="stat-val" id="count-square">0</div>
+                        <div class="stat-label">Squares</div>
+                    </div>
+                    <div class="stat-box shape-rect">
+                        <div class="stat-icon">🟪</div>
+                        <div class="stat-val" id="count-rectangle">0</div>
+                        <div class="stat-label">Rectangles</div>
+                    </div>
+                </div>
+                <div class="total-objects">
+                    Total Detected: <span id="count-total">0</span>
+                </div>
+            </div>
+
+            <!-- Telemetry -->
+            <div class="card">
+                <div class="card-header">Telemetry</div>
+                <div class="telemetry-list">
+                    <div class="tel-row">
+                        <span class="tel-label">Altitude (AGL)</span>
+                        <span class="tel-val" id="tel-alt">-- m</span>
+                    </div>
+                    <div class="tel-row">
+                        <span class="tel-label">Ground Speed</span>
+                        <span class="tel-val" id="tel-speed">-- m/s</span>
+                    </div>
+                    <div class="tel-row">
+                        <span class="tel-label">GPS</span>
+                        <span class="tel-val" id="tel-gps">--, --</span>
+                    </div>
+                    <div class="tel-row">
+                        <span class="tel-label">Heading</span>
+                        <span class="tel-val" id="tel-hdg">-- °</span>
+                    </div>
+                    <div class="tel-row">
+                        <span class="tel-label">Battery</span>
+                        <span class="tel-val" id="tel-bat">-- V (--%)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Event Log -->
+            <div class="card event-log-card">
+                <div class="card-header">Event Log</div>
+                <div class="event-log" id="event-log">
+                    <!-- Logs go here -->
+                    <div class="log-item">System initialized.</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

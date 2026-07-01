@@ -134,7 +134,16 @@ class MavlinkBridge:
             
             # Wait for drone to reach altitude before switching to AUTO
             logger.info("Waiting for drone to reach target altitude...")
-            time.sleep(5.0)
+            start_wait = time.time()
+            while time.time() - start_wait < 15.0: # Max wait 15 seconds
+                tel = self.get_telemetry()
+                alt = tel.get('alt', 0)
+                if alt >= 9.0:
+                    logger.info(f"Reached altitude: {alt:.1f}m. Proceeding to AUTO.")
+                    break
+                time.sleep(0.5)
+            else:
+                logger.warning("Did not reach 9.0m within 15 seconds, forcing AUTO anyway.")
             
             # Skip dummy home (seq 0) and embedded takeoff (seq 1) — we already
             # took off manually in GUIDED, so jump straight to the first real

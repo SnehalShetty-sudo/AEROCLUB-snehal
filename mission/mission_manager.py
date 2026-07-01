@@ -76,15 +76,13 @@ class MissionManager:
                 elif seq == 1:
                     # Automatic Takeoff Waypoint
                     _, _, alt = waypoints[0] # Takeoff to the altitude of the first waypoint
-                    home_lat = int(waypoints[0][0] * 1e7) if waypoints else 0
-                    home_lon = int(waypoints[0][1] * 1e7) if waypoints else 0
                     
                     master.mav.mission_item_int_send(
                         master.target_system, master.target_component, seq,
                         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
                         mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
                         0, 1, 0, 0, 0, 0,
-                        home_lat, home_lon, float(alt)
+                        0, 0, float(alt)
                     )
                 else:
                     lat, lon, alt = waypoints[seq - 2]

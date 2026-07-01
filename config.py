@@ -90,11 +90,12 @@ GRID_CELL_SIZE = 1.0       # Memory Grid cell size in meters (1x1m)
 # Default geofence polygon
 if SIMULATION_MODE:
     # 30x30m box near CMAC Canberra (ArduPilot SITL default spawn point)
+    # Exactly matches the 30x30m boundary formed by the red markers in isro_mars.sdf
     GEOFENCE_POLYGON = [
-        (-35.36320, 149.16520),
-        (-35.36320, 149.16555),
-        (-35.36350, 149.16555),
-        (-35.36350, 149.16520),
+        (-35.363396, 149.165065), # Bottom Left
+        (-35.363396, 149.165395), # Bottom Right
+        (-35.363126, 149.165395), # Top Right
+        (-35.363126, 149.165065), # Top Left
     ]
 else:
     # Real-world geofence — UPDATE THESE to your actual competition field!

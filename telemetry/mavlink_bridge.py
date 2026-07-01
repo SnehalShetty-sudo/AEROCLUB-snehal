@@ -112,10 +112,14 @@ class MavlinkBridge:
             
             # Send TAKEOFF command
             logger.info("Commanding takeoff to 10m...")
+            tel = self.get_telemetry()
+            lat = tel.get('lat', 0)
+            lon = tel.get('lon', 0)
+            
             self.master.mav.command_long_send(
                 self.master.target_system, self.master.target_component,
                 mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,
-                0, 0, 0, 0, 0, 0, 0, 10.0
+                0, 0, 0, 0, 0, lat, lon, 10.0
             )
             
             # Wait for TAKEOFF acknowledgement

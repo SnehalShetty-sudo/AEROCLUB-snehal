@@ -103,6 +103,14 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Map / Radar Widget -->
+            <div class="card">
+                <div class="card-header">Live Location Radar</div>
+                <div style="padding: 10px; display: flex; justify-content: center;">
+                    <canvas id="radar-canvas" width="200" height="200" style="background: #111; border-radius: 8px; border: 1px solid #333;"></canvas>
+                </div>
+            </div>
 
             <!-- Live Detection Log (Replaces generic event log) -->
             <div class="card event-log-card">
@@ -126,6 +134,10 @@
         </div>
     </div>
 
+    <script>
+        // Inject geofence from backend
+        window.GEOFENCE = {{ geofence | safe }};
+    </script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

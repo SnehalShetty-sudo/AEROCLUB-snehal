@@ -83,7 +83,91 @@ document.addEventListener("DOMContentLoaded", () => {
             const pct = data.wp_total > 0 ? (data.wp_current / data.wp_total) * 100 : 0;
             progressFill.style.width = `${pct}%`;
         }
+
+        if(data.lat !== undefined && data.lon !== undefined && window.GEOFENCE) {
+            drawRadar(data.lat, data.lon, data.heading || 0);
+        }
     });
+
+    // Radar Widget Logic
+    function drawRadar(droneLat, droneLon, heading) {
+        const canvas = document.getElementById('radar-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, w, h);
+        
+        // Draw grid lines for aesthetics
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < w; i += 20) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+        }
+
+        // Calculate bounding box of geofence
+        let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+        window.GEOFENCE.forEach(pt => {
+            if (pt[0] < minLat) minLat = pt[0];
+            if (pt[0] > maxLat) maxLat = pt[0];
+            if (pt[1] < minLon) minLon = pt[1];
+            if (pt[1] > maxLon) maxLon = pt[1];
+        });
+
+        // Add 10% padding to bounds
+        const latPad = (maxLat - minLat) * 0.1;
+        const lonPad = (maxLon - minLon) * 0.1;
+        minLat -= latPad; maxLat += latPad;
+        minLon -= lonPad; maxLon += lonPad;
+
+        const latRange = maxLat - minLat;
+        const lonRange = maxLon - minLon;
+
+        // Helper to convert lat/lon to canvas x/y
+        function getXY(lat, lon) {
+            const x = ((lon - minLon) / lonRange) * w;
+            // latitude increases as you go North (up), so invert Y
+            const y = h - (((lat - minLat) / latRange) * h);
+            return {x, y};
+        }
+
+        // Draw Geofence
+        ctx.beginPath();
+        window.GEOFENCE.forEach((pt, i) => {
+            const pos = getXY(pt[0], pt[1]);
+            if (i === 0) ctx.moveTo(pos.x, pos.y);
+            else ctx.lineTo(pos.x, pos.y);
+        });
+        ctx.closePath();
+        ctx.strokeStyle = '#e74c3c'; // red boundary
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.1)';
+        ctx.fill();
+
+        // Draw Drone
+        const dronePos = getXY(droneLat, droneLon);
+        
+        ctx.save();
+        ctx.translate(dronePos.x, dronePos.y);
+        // Convert heading to radians (0 is North)
+        ctx.rotate(heading * Math.PI / 180);
+        
+        // Draw drone triangle pointing North (up)
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(6, 6);
+        ctx.lineTo(0, 3);
+        ctx.lineTo(-6, 6);
+        ctx.closePath();
+        ctx.fillStyle = '#00ff00';
+        ctx.fill();
+        
+        ctx.restore();
+    }
 
     // Detection updates
     let lastCounts = {};

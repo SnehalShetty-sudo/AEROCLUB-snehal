@@ -68,7 +68,9 @@ def generate_mjpeg_stream():
 @app.route('/')
 def index():
     """Serve the dashboard HTML."""
-    return render_template('index.html')
+    from config import GEOFENCE_POLYGON
+    import json
+    return render_template('index.html', geofence=json.dumps(GEOFENCE_POLYGON))
 
 @app.route('/video_feed')
 def video_feed():

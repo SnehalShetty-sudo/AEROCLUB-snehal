@@ -169,6 +169,20 @@ body {
     flex-direction: column;
     gap: 15px;
     min-width: 300px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* Custom Scrollbar for side panel */
+.side-panel::-webkit-scrollbar {
+    width: 6px;
+}
+.side-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+.side-panel::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
 }
 
 /* Stats Grid */

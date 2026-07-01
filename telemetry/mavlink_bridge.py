@@ -132,6 +132,15 @@ class MavlinkBridge:
             logger.info("Waiting for drone to reach target altitude...")
             time.sleep(5.0)
             
+            # Skip dummy home (seq 0) and embedded takeoff (seq 1) — we already
+            # took off manually in GUIDED, so jump straight to the first real
+            # sweep waypoint (seq 2) to prevent a nosedive back to altitude 0.
+            logger.info("Setting mission current to waypoint 2 (first sweep point)...")
+            self.master.mav.mission_set_current_send(
+                self.master.target_system, self.master.target_component, 2
+            )
+            time.sleep(0.5)
+            
             # Set AUTO mode to fly the rest of the mission
             logger.info("Switching to AUTO mode...")
             self.master.mav.set_mode_send(

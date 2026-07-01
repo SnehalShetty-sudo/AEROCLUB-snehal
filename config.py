@@ -87,13 +87,23 @@ CAMERA_HFOV_DEG = 66.0     # Camera Module 3 horizontal FOV
 SWATH_OVERLAP = 0.20       # 20% overlap between adjacent passes
 GRID_CELL_SIZE = 1.0       # Memory Grid cell size in meters (1x1m)
 
-# Default geofence polygon (arbitrary 30x30m box for testing)
-GEOFENCE_POLYGON = [
-    (28.61390, 77.20900),
-    (28.61390, 77.20930),
-    (28.61360, 77.20930),
-    (28.61360, 77.20900)
-]
+# Default geofence polygon
+if SIMULATION_MODE:
+    # 30x30m box near CMAC Canberra (ArduPilot SITL default spawn point)
+    GEOFENCE_POLYGON = [
+        (-35.36320, 149.16520),
+        (-35.36320, 149.16555),
+        (-35.36350, 149.16555),
+        (-35.36350, 149.16520),
+    ]
+else:
+    # Real-world geofence — UPDATE THESE to your actual competition field!
+    GEOFENCE_POLYGON = [
+        (28.61390, 77.20900),
+        (28.61390, 77.20930),
+        (28.61360, 77.20930),
+        (28.61360, 77.20900),
+    ]
 
 # ─── Colors for Drawing ─────────────────────────────────────────────
 COLORS = {

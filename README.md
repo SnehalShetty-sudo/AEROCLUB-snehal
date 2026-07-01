@@ -105,7 +105,11 @@ pip install -r requirements.txt
 
 ### 3. Execution
 1. Open `config.py` and ensure `SIMULATION_MODE = False`.
-2. Run the core system:
+2. If your YOLOv8 model file (`.hef`) is not at the default path `/home/aeroclub123/models/yolov8n.hef`, set the environment variable before running:
+   ```bash
+   export DRONE_MODEL_PATH=/path/to/your/yolov8n.hef
+   ```
+3. Run the core system:
    ```bash
    python3 main.py
    ```

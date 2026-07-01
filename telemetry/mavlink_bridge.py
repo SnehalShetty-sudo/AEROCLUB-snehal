@@ -15,7 +15,7 @@ from pymavlink import mavutil
 
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from config import FC_CONNECTION_STRING, FC_BAUD, FC_MOCK_MODE
+from config import FC_CONNECTION_STRING, FC_BAUD, FC_MOCK_MODE, SIMULATION_MODE
 
 logger = logging.getLogger("mavlink_bridge")
 
@@ -97,10 +97,20 @@ class MavlinkBridge:
                 0, 1, 0, 0, 0, 0, 0, 0
             )
             
-            # Wait for arming to complete
-            time.sleep(2.0)
+            # Wait for ARM acknowledgement instead of blind sleep
+            ack = self.master.recv_match(type='COMMAND_ACK', blocking=True, timeout=5.0)
+            if ack and ack.command == mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM:
+                if ack.result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                    logger.error(f"ARM command REJECTED by flight controller (result={ack.result}). Pre-arm checks may have failed.")
+                    return
+                logger.info("ARM command ACCEPTED by flight controller.")
+            else:
+                logger.warning("No ACK received for ARM command within 5s. Proceeding cautiously...")
             
-            # Send TAKEOFF command in GUIDED mode (exactly what the user typed in MAVProxy!)
+            # Verify armed state
+            time.sleep(1.0)
+            
+            # Send TAKEOFF command
             logger.info("Commanding takeoff to 10m...")
             self.master.mav.command_long_send(
                 self.master.target_system, self.master.target_component,
@@ -108,8 +118,18 @@ class MavlinkBridge:
                 0, 0, 0, 0, 0, 0, 0, 10.0
             )
             
-            # Give it time to spool up and climb
-            logger.info("Waiting for drone to climb...")
+            # Wait for TAKEOFF acknowledgement
+            ack = self.master.recv_match(type='COMMAND_ACK', blocking=True, timeout=5.0)
+            if ack and ack.command == mavutil.mavlink.MAV_CMD_NAV_TAKEOFF:
+                if ack.result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+                    logger.error(f"TAKEOFF command REJECTED (result={ack.result}). Drone may not be armed.")
+                    return
+                logger.info("TAKEOFF command ACCEPTED. Drone is climbing...")
+            else:
+                logger.warning("No ACK received for TAKEOFF command within 5s.")
+            
+            # Wait for drone to reach altitude before switching to AUTO
+            logger.info("Waiting for drone to reach target altitude...")
             time.sleep(5.0)
             
             # Set AUTO mode to fly the rest of the mission

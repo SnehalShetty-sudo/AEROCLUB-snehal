@@ -3,11 +3,14 @@ config.py — Centralized configuration for the drone detection system.
 All tunable parameters live here. Change values here, not in individual modules.
 """
 
+import os
 from pathlib import Path
 
 # ─── Paths ───────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent
-MODEL_PATH = Path("/home/aeroclub123/models/yolov8n.hef")
+# Set the DRONE_MODEL_PATH environment variable to override this for your system.
+# Default path is for the Raspberry Pi deployment.
+MODEL_PATH = Path(os.environ.get("DRONE_MODEL_PATH", "/home/aeroclub123/models/yolov8n.hef"))
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -41,7 +44,17 @@ COCO_CLASSES = [
 ]
 
 # ─── Shape Detection ──────────────────────────────────────────────────
-# (Removed to focus purely on human detection to prevent false positives)
+# NOTE: Shape detection is currently DISABLED in main.py to focus on
+# human detection and prevent false positives. These values are kept here
+# so that detection/shape_detector.py can still be imported and tested
+# independently without crashing.
+SHAPE_MIN_AREA = 500
+SHAPE_MAX_AREA = 50000
+SHAPE_COLORS = {
+    "red_low":  {"lower": (0, 100, 100),   "upper": (10, 255, 255)},
+    "red_high": {"lower": (160, 100, 100),  "upper": (180, 255, 255)},
+    "blue":     {"lower": (100, 100, 80),   "upper": (130, 255, 255)},
+}
 
 # ─── Streaming ───────────────────────────────────────────────────────
 JPEG_QUALITY = 70          # 0-100, lower = smaller/faster, higher = better quality

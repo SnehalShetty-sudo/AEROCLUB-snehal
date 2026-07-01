@@ -1,0 +1,17 @@
+# Core dependencies (all platforms)
+flask>=3.0
+flask-socketio>=5.3
+pymavlink>=2.4
+opencv-python>=4.8
+numpy>=1.24
+pyproj>=3.6
+shapely>=2.0
+
+# Simulation mode (PC/WSL only — not needed on Raspberry Pi)
+# ultralytics            # YOLOv8 CPU inference (pip install ultralytics)
+# rclpy                  # ROS2 Python client (installed via ROS2, not pip)
+# cv_bridge              # ROS2 OpenCV bridge (installed via ROS2, not pip)
+
+# Real-world Raspberry Pi only
+# hailo-platform         # HailoRT Python bindings (installed via Hailo SDK)
+# picamera2              # Raspberry Pi Camera (pre-installed on Pi OS)

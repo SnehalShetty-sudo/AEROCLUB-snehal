@@ -117,6 +117,8 @@ def main():
     # 5. Initialize Detector
     try:
         det = Detector()
+        from detection.shape_detector import ShapeDetector
+        shape_det = ShapeDetector()
     except Exception as e:
         logger.error(f"Detector init failed: {e}")
         return
@@ -155,19 +157,24 @@ def main():
             
             # Detect
             detections = det.detect(frame)
+            if SIMULATION_MODE:
+                shape_detections = shape_det.detect(frame)
+                detections.extend(shape_detections)
             
             # Mapping (Only if we have drone telemetry)
             tel = mav_bridge.get_telemetry()
             
             for d in detections:
-                if d.class_name == "person":
-                    res = memory_grid.add_detection(
-                        tel["lat"], tel["lon"], tel["alt"], tel["heading"],
-                        frame.shape[1], frame.shape[0], d.bbox
-                    )
-                    if res.get("is_new"):
-                        from dashboard.server import push_new_detection
-                        push_new_detection(res)
+                # Map all detections (person, triangle, square, rectangle, etc.)
+                res = memory_grid.add_detection(
+                    tel["lat"], tel["lon"], tel["alt"], tel["heading"],
+                    frame.shape[1], frame.shape[0], d.bbox
+                )
+                if res.get("is_new"):
+                    from dashboard.server import push_new_detection
+                    # Pass the class_name so the dashboard knows what was detected
+                    res["class_name"] = d.class_name
+                    push_new_detection(res)
             
             # Annotate
             annotated = annotate_frame(frame, detections)

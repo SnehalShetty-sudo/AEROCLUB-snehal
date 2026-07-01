@@ -93,8 +93,8 @@ class MissionManager:
                         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
                         mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
                         0, 1, # current, autocontinue
-                        0, 0, 0, 0, # p1, p2, p3, p4 (delay, radius, pass_radius, yaw)
-                        int(lat * 1e7), int(lon * 1e7), alt
+                        0, 0, 0, float('nan'), # p1, p2, p3, p4 (delay, radius, pass_radius, yaw)
+                        int(lat * 1e7), int(lon * 1e7), float(alt)
                     )
                 
             msg = master.recv_match(type=['MISSION_ACK'], blocking=True, timeout=3)

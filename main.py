@@ -20,33 +20,51 @@ from mission.path_planner import generate_lawnmower_path
 from mission.memory_grid import MemoryGrid
 from dashboard.server import (
     start_server_in_thread, update_video_frame,
-    push_telemetry, push_detection_stats, socketio
+    push_telemetry, push_detection_stats, socketio,
+    set_mav_bridge
 )
 
 # Dynamic imports based on mode
 if SIMULATION_MODE:
     from detection.cpu_detector import CPUYoloDetector as Detector
-    import rclpy
-    from rclpy.node import Node
-    from sensor_msgs.msg import Image
-    from cv_bridge import CvBridge
+    try:
+        import rclpy
+        from rclpy.node import Node
+        from sensor_msgs.msg import Image
+        from cv_bridge import CvBridge
 
-    class ROS2Camera(Node):
-        def __init__(self, topic):
-            super().__init__('pi_drone_camera_sub')
-            self.bridge = CvBridge()
-            self.latest_frame = None
-            self.subscription = self.create_subscription(Image, topic, self.listener_callback, 10)
-            
-        def listener_callback(self, msg):
-            # Convert ROS2 Image to OpenCV BGR
-            try:
-                self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-            except Exception as e:
-                logger.error(f"Failed to convert image: {e}")
+        class ROS2Camera(Node):
+            def __init__(self, topic):
+                super().__init__('pi_drone_camera_sub')
+                self.bridge = CvBridge()
+                self.latest_frame = None
+                self.subscription = self.create_subscription(Image, topic, self.listener_callback, 10)
                 
-        def get_frame(self):
-            return self.latest_frame
+            def listener_callback(self, msg):
+                try:
+                    self.latest_frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+                except Exception as e:
+                    logger.error(f"Failed to convert image: {e}")
+                    
+            def get_frame(self):
+                return self.latest_frame
+    except ImportError:
+        logger.warning("rclpy not found, using MockCamera for testing.")
+        class MockCamera:
+            def __init__(self):
+                self.frame = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.putText(self.frame, "MOCK CAMERA", (200, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            def get_frame(self):
+                return self.frame
+        ROS2Camera = lambda topic: MockCamera()
+        
+        # mock rclpy functions so the thread doesn't crash
+        class MockRclpy:
+            def init(self): pass
+            def spin(self, node): time.sleep(9999)
+            def shutdown(self): pass
+        rclpy = MockRclpy()
+        
 else:
     from detection.hailo_detector import HailoDetector as Detector
 
@@ -83,6 +101,7 @@ def main():
     memory_grid = MemoryGrid(GEOFENCE_POLYGON, cell_size=GRID_CELL_SIZE)
     
     # 3. Dashboard Server
+    set_mav_bridge(mav_bridge)
     server_thread = start_server_in_thread()
     
     # 4. Camera Setup

@@ -1,0 +1,7 @@
+# Default params for Drone Alpha
+PID_ROLL_P    0.135
+PID_ROLL_I    0.090
+PID_ROLL_D    0.004
+MOT_PWM_MIN   1000
+MOT_PWM_MAX   2000
+FLIGHT_ALT    15.0

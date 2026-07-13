@@ -11,3 +11,5 @@ venv.bak/
 .env
 .DS_Store
 *.log
+*.pt
+yolov8n.pt

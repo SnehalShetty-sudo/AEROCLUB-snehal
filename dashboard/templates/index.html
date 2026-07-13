@@ -3,141 +3,455 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drone Detection Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4">
+    <title>Drone Dashboard V2</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=7">
     <!-- Socket.IO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <!-- Chart.js for optional graphing later if needed -->
-    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> -->
 </head>
 <body>
-    <div class="top-bar">
-        <div class="title">🚁 Aerial Detection System</div>
-        <div class="status-indicators">
-            <span id="conn-status" class="status badge-warning">Connecting...</span>
-            <span id="arm-status" class="status badge-danger">Disarmed</span>
-            <span id="mode-status" class="status badge-info">MANUAL</span>
-        </div>
-    </div>
-
-    <div class="dashboard-container">
-        <!-- Left Panel: Video Feed -->
-        <div class="video-panel card">
-            <div class="card-header">Live Feed (annotated)</div>
-            <div class="video-wrapper">
-                <img id="video-stream" src="/video_feed" alt="Video stream offline">
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-item" data-tab="overview" title="Overview">
+                <span class="icon">🏠</span>
+                <span class="label">Overview</span>
             </div>
-            <div class="mission-controls">
-                <button id="btn-start" class="btn btn-success">Start Mission</button>
-                <button id="btn-pause" class="btn btn-warning">Pause</button>
-                <button id="btn-rtl" class="btn btn-danger">RTL (Abort)</button>
+            <div class="sidebar-item active" data-tab="mission" title="Mission Control">
+                <span class="icon">🚀</span>
+                <span class="label">Mission</span>
             </div>
-            <div class="mission-progress-container">
-                <div class="progress-info">
-                    <span>Mission Progress</span>
-                    <span id="wp-text">WP: 0/0</span>
-                </div>
-                <div class="progress-bar-bg">
-                    <div id="progress-fill" class="progress-bar-fill" style="width: 0%"></div>
-                </div>
+            <div class="sidebar-item" data-tab="calibration" title="Calibration">
+                <span class="icon">🔧</span>
+                <span class="label">Calibration</span>
             </div>
-        </div>
+            <div class="sidebar-item" data-tab="preflight" title="Pre-Flight Checks">
+                <span class="icon">📋</span>
+                <span class="label">Pre-Flight</span>
+            </div>
+            <div class="sidebar-item" data-tab="profile" title="Drone Profile">
+                <span class="icon">⚙️</span>
+                <span class="label">Profile</span>
+            </div>
+            <div class="sidebar-item" data-tab="logs" title="Flight Logs">
+                <span class="icon">📊</span>
+                <span class="label">Logs</span>
+            </div>
+        </nav>
 
-
-        <!-- Right Panel: Stats & Telemetry -->
-        <div class="side-panel">
-            
-            <!-- Detection Summary -->
-            <div class="card">
-                <div class="card-header">Detection Summary</div>
-                <div class="stats-grid">
-                    <div class="stat-box person">
-                        <div class="stat-icon">👤</div>
-                        <div class="stat-val" id="count-person">0</div>
-                        <div class="stat-label">Persons</div>
-                    </div>
-                    <div class="stat-box shape-tri">
-                        <div class="stat-icon">🔺</div>
-                        <div class="stat-val" id="count-triangle">0</div>
-                        <div class="stat-label">Triangles</div>
-                    </div>
-                    <div class="stat-box shape-sq">
-                        <div class="stat-icon">🟦</div>
-                        <div class="stat-val" id="count-square">0</div>
-                        <div class="stat-label">Squares</div>
-                    </div>
-                    <div class="stat-box shape-rect">
-                        <div class="stat-icon">🟪</div>
-                        <div class="stat-val" id="count-rectangle">0</div>
-                        <div class="stat-label">Rectangles</div>
-                    </div>
-                </div>
-                <div class="total-objects">
-                    Total Detected: <span id="count-total">0</span>
+        <div class="main-content">
+            <div class="top-bar">
+                <div class="title">🚁 Aerial Detection System <span id="phase-indicator" class="status badge-info" style="margin-left: 10px;">IN-FLIGHT</span></div>
+                <div class="status-indicators">
+                    <span id="conn-status" class="status badge-warning">Connecting...</span>
+                    <span id="arm-status" class="status badge-danger">Disarmed</span>
+                    <span id="mode-status" class="status badge-info">MANUAL</span>
                 </div>
             </div>
 
-            <!-- Telemetry -->
-            <div class="card">
-                <div class="card-header">Telemetry</div>
-                <div class="telemetry-list">
-                    <div class="tel-row">
-                        <span class="tel-label">Altitude (AGL)</span>
-                        <span class="tel-val" id="tel-alt">-- m</span>
-                    </div>
-                    <div class="tel-row">
-                        <span class="tel-label">Ground Speed</span>
-                        <span class="tel-val" id="tel-speed">-- m/s</span>
-                    </div>
-                    <div class="tel-row">
-                        <span class="tel-label">GPS</span>
-                        <span class="tel-val" id="tel-gps">--, --</span>
-                    </div>
-                    <div class="tel-row">
-                        <span class="tel-label">Heading</span>
-                        <span class="tel-val" id="tel-hdg">-- °</span>
-                    </div>
-                    <div class="tel-row">
-                        <span class="tel-label">Battery</span>
-                        <span class="tel-val" id="tel-bat">-- V (--%)</span>
+            <div class="tab-container">
+                <!-- TAB 1: OVERVIEW -->
+                <div id="tab-overview" class="tab-content">
+                    <div class="dashboard-container">
+                        <div style="display: flex; flex-direction: column; flex: 1; gap: 15px;">
+                            <div class="card" style="flex: 1;">
+                                <div class="card-header">Drone Identity</div>
+                                <div style="padding: 15px;">
+                                    <p><strong>Name:</strong> Drone Alpha</p>
+                                    <p><strong>Frame:</strong> X-frame 450mm</p>
+                                    <p><strong>FC:</strong> Pixhawk 2.4.8</p>
+                                    <p><strong>Profile:</strong> v2.1 (loaded)</p>
+                                    <p><strong>Serial:</strong> PX4-0x3FA29</p>
+                                </div>
+                            </div>
+                            <div class="card" style="flex: 1;">
+                                <div class="card-header">Quick Actions</div>
+                                <div style="padding: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button class="btn btn-info" onclick="document.querySelector('[data-tab=\'mission\']').click()">Go To Mission</button>
+                                    <button class="btn btn-warning" onclick="document.querySelector('[data-tab=\'calibration\']').click()">Calibration</button>
+                                    <button class="btn btn-success" onclick="document.querySelector('[data-tab=\'preflight\']').click()">Pre-Flight</button>
+                                </div>
+                            </div>
+                            <div class="card" style="flex: 1;">
+                                <div class="card-header">Recent Flights</div>
+                                <div style="padding: 15px;">
+                                    <ul style="list-style-type: none; line-height: 1.8; margin: 0; padding: 0;">
+                                        <li>• Jul 12, 14:30 - 8min flight</li>
+                                        <li>• Jul 11, 16:00 - 12min flight</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card" style="flex: 1;">
+                            <div class="card-header">System Health & Readiness</div>
+                            <div style="padding: 15px;">
+                                <p>✅ FC Connected</p>
+                                <p>✅ GPS: 3D Fix (12)</p>
+                                <p>✅ Battery: 16.2V</p>
+                                <p>⚠️ Compass: Needs recalibration</p>
+                                <p>✅ Accel: Calibrated</p>
+                                <p>✅ ESC: Calibrated</p>
+                                <p>✅ RC Link: Strong</p>
+                                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+                                <h4 style="margin-bottom: 10px; color: var(--text-muted);">READINESS</h4>
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
+                                    <span style="color: var(--accent-orange);">🟡 NOT READY (1 issue)</span>
+                                    <button class="btn btn-success" onclick="document.querySelector('[data-tab=\'preflight\']').click()">Run Pre-Flight ▶</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Map / Radar Widget -->
-            <div class="card">
-                <div class="card-header">Live Location Radar</div>
-                <div style="padding: 10px; display: flex; justify-content: center;">
-                    <canvas id="radar-canvas" width="200" height="200" style="background: #111; border-radius: 8px; border: 1px solid #333;"></canvas>
-                </div>
-            </div>
 
-            <!-- Live Detection Log (Replaces generic event log) -->
-            <div class="card event-log-card">
-                <div class="card-header">Live Detection Log</div>
-                <div class="event-log" id="event-log" style="padding: 0;">
-                    <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;">
-                        <thead style="background: rgba(0,0,0,0.5); position: sticky; top: 0;">
-                            <tr>
-                                <th style="padding: 6px;">Time</th>
-                                <th style="padding: 6px;">Cell</th>
-                                <th style="padding: 6px;">Coordinates</th>
-                            </tr>
-                        </thead>
-                        <tbody id="detection-log-body">
-                            <!-- Detections go here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                <!-- TAB 2: MISSION (Original Dashboard) -->
+                <div id="tab-mission" class="tab-content active-tab">
+                    <div class="dashboard-container">
+                        <!-- Left Panel: Video Feed -->
+                        <div class="video-panel card">
+                            <div class="card-header">Live Feed (annotated)</div>
+                            <div class="video-wrapper">
+                                <img id="video-stream" src="/video_feed" alt="Video stream offline">
+                            </div>
+                            <div class="mission-controls">
+                                <button id="btn-start" class="btn btn-success">Start Mission</button>
+                                <button id="btn-pause" class="btn btn-warning">Pause</button>
+                                <button id="btn-rtl" class="btn btn-danger">RTL (Abort)</button>
+                            </div>
+                            <div class="mission-progress-container">
+                                <div class="progress-info">
+                                    <span>Mission Progress</span>
+                                    <span id="wp-text">WP: 0/0</span>
+                                </div>
+                                <div class="progress-bar-bg">
+                                    <div id="progress-fill" class="progress-bar-fill" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
 
+                        <!-- Right Panel: Stats & Telemetry -->
+                        <div class="side-panel">
+                            
+                            <!-- Detection Summary -->
+                            <div class="card">
+                                <div class="card-header">Detection Summary</div>
+                                <div class="stats-grid">
+                                    <div class="stat-box person">
+                                        <div class="stat-icon">👤</div>
+                                        <div class="stat-val" id="count-person">0</div>
+                                        <div class="stat-label">Persons</div>
+                                    </div>
+                                    <div class="stat-box shape-tri">
+                                        <div class="stat-icon">🔺</div>
+                                        <div class="stat-val" id="count-triangle">0</div>
+                                        <div class="stat-label">Triangles</div>
+                                    </div>
+                                    <div class="stat-box shape-sq">
+                                        <div class="stat-icon">🟦</div>
+                                        <div class="stat-val" id="count-square">0</div>
+                                        <div class="stat-label">Squares</div>
+                                    </div>
+                                    <div class="stat-box shape-rect">
+                                        <div class="stat-icon">🟪</div>
+                                        <div class="stat-val" id="count-rectangle">0</div>
+                                        <div class="stat-label">Rectangles</div>
+                                    </div>
+                                </div>
+                                <div class="total-objects">
+                                    Total Detected: <span id="count-total">0</span>
+                                </div>
+                            </div>
+
+                            <!-- Telemetry -->
+                            <div class="card">
+                                <div class="card-header">Telemetry</div>
+                                <div class="telemetry-list">
+                                    <div class="tel-row">
+                                        <span class="tel-label">Altitude (AGL)</span>
+                                        <span class="tel-val" id="tel-alt">-- m</span>
+                                    </div>
+                                    <div class="tel-row">
+                                        <span class="tel-label">Ground Speed</span>
+                                        <span class="tel-val" id="tel-speed">-- m/s</span>
+                                    </div>
+                                    <div class="tel-row">
+                                        <span class="tel-label">GPS</span>
+                                        <span class="tel-val" id="tel-gps">--, --</span>
+                                    </div>
+                                    <div class="tel-row">
+                                        <span class="tel-label">Heading</span>
+                                        <span class="tel-val" id="tel-hdg">-- °</span>
+                                    </div>
+                                    <div class="tel-row">
+                                        <span class="tel-label">Battery</span>
+                                        <span class="tel-val" id="tel-bat">-- V (--%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Map / Radar Widget -->
+                            <div class="card">
+                                <div class="card-header">Live Location Radar</div>
+                                <div style="padding: 10px; display: flex; justify-content: center;">
+                                    <canvas id="radar-canvas" width="200" height="200" style="background: #111; border-radius: 8px; border: 1px solid #333;"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Live Detection Log -->
+                            <div class="card event-log-card">
+                                <div class="card-header">Live Detection Log</div>
+                                <div class="event-log" id="event-log" style="padding: 0;">
+                                    <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;">
+                                        <thead style="background: rgba(0,0,0,0.5); position: sticky; top: 0;">
+                                            <tr>
+                                                <th style="padding: 6px;">Time</th>
+                                                <th style="padding: 6px;">Cell</th>
+                                                <th style="padding: 6px;">Coordinates</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="detection-log-body">
+                                            <!-- Detections go here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: CALIBRATION -->
+                <div id="tab-calibration" class="tab-content">
+                    <div class="dashboard-container" style="flex-direction: column;">
+                        <div style="display: flex; gap: 15px; flex: 2;">
+                            <div class="card" style="flex: 1;">
+                                <div class="card-header">⚡ ESC Calibration</div>
+                                <div style="padding: 15px;">
+                                    <p><strong>Status:</strong> ✅ Done</p>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 10</p>
+                                    <p style="margin-top: 10px;">T-Motor 20A (PWM)</p>
+                                    <button class="btn btn-warning" style="margin-top: 15px; width: 100%;">Recalibrate</button>
+                                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;"><strong>How it works:</strong></p>
+                                    <ol style="padding-left: 20px; font-size: 0.85rem; color: #ccc; margin-top: 10px; line-height: 1.6;">
+                                        <li>Click button</li>
+                                        <li>Power off drone</li>
+                                        <li>Power on drone</li>
+                                        <li>Wait for beep</li>
+                                        <li>Done ✅</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <div class="card" style="flex: 1;">
+                                <div class="card-header">📐 Accel Calibration</div>
+                                <div style="padding: 15px;">
+                                    <p><strong>Status:</strong> ✅ Done</p>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 10</p>
+                                    <p style="margin-top: 10px;">Mode: Simple Lvl or Full 6-Axis</p>
+                                    <button class="btn btn-warning" style="margin-top: 15px; width: 100%;">Recalibrate</button>
+                                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;"><strong>Step 1 of 1:</strong></p>
+                                    <ol style="padding-left: 20px; font-size: 0.85rem; color: #ccc; margin-top: 10px; line-height: 1.6;">
+                                        <li>Place drone on level surface</li>
+                                        <li>Click [Calibrate]</li>
+                                    </ol>
+                                </div>
+                            </div>
+                            <div class="card" style="flex: 1;">
+                                <div class="card-header">🧭 Compass Calibration</div>
+                                <div style="padding: 15px;">
+                                    <p><strong>Status:</strong> ⚠️ Needed</p>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 03</p>
+                                    <p style="margin-top: 10px;">Type: Onboard</p>
+                                    <button class="btn btn-success" style="margin-top: 15px; width: 100%;" id="btn-calibrate-compass">Start Calibration</button>
+                                    
+                                    <div id="compass-progress-container" style="display: none; margin-top: 15px;">
+                                        <div class="progress-bar-bg" style="height: 15px;">
+                                            <div id="compass-progress-fill" class="progress-bar-fill" style="width: 0%; background: #10b981;"></div>
+                                        </div>
+                                        <p id="compass-progress-text" style="font-size: 0.85rem; margin-top: 5px; text-align: center;">Progress: 0%</p>
+                                    </div>
+
+                                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+                                    <ol style="padding-left: 20px; font-size: 0.85rem; color: #ccc; margin-top: 10px; line-height: 1.6;">
+                                        <li>Rotate drone slowly in all orientations...</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card" style="flex: 1;">
+                            <div class="card-header">Saved Calibration Data (from last calibration)</div>
+                            <div style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                                <pre style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 5px; font-size: 0.85rem; color: #ccc; margin: 0;">
+Accel Offsets:   X=-0.12   Y=0.08   Z=-0.34
+Compass Offsets: X=120     Y=-45    Z=30
+ESC Range:       PWM MIN=1000   PWM MAX=2000
+                                </pre>
+                                <div style="display: flex; gap: 10px; margin-top: 5px;">
+                                    <button class="btn" style="background: #333;">Save to Profile</button>
+                                    <button class="btn" style="background: #333;">Export as .param</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: PRE-FLIGHT -->
+                <div id="tab-preflight" class="tab-content">
+                    <div class="dashboard-container" style="flex-direction: column;">
+                        <div class="card" style="width: 100%;">
+                            <div class="card-header">Pre-Flight Checklist <button id="btn-run-checks" class="btn btn-success" style="float: right; padding: 2px 10px; font-size: 0.8rem;">Run All ▶</button></div>
+                            <div style="padding: 15px;">
+                                <h4 style="margin-bottom: 10px; color: var(--text-muted);">AUTOMATED CHECKS (MAVLink queries)</h4>
+                                <div id="preflight-results" style="margin-bottom: 20px;">
+                                    <p>Run checks to see status...</p>
+                                </div>
+                                <hr style="border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+                                <h4 style="margin-bottom: 10px; color: var(--text-muted);">MANUAL CONFIRMATIONS (pilot verifies)</h4>
+                                <div class="manual-checks" style="display: flex; flex-direction: column; gap: 10px;">
+                                    <label><input type="checkbox" class="manual-check"> Props secured and correct rotation</label>
+                                    <label><input type="checkbox" class="manual-check"> Battery strapped and balanced</label>
+                                    <label><input type="checkbox" class="manual-check"> Camera lens clean and unobstructed</label>
+                                    <label><input type="checkbox" class="manual-check"> Launch area clear of people</label>
+                                    <label><input type="checkbox" class="manual-check"> Wind conditions acceptable</label>
+                                </div>
+                                <hr style="border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+                                <div id="preflight-verdict" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px;">
+                                    <h3 style="color: var(--accent-orange);">🟡 1 ISSUE — NOT READY</h3>
+                                    <p style="margin-top: 5px; color: var(--text-muted);">Fix compass interference before flight, and complete manual checks.</p>
+                                    <div style="margin-top: 15px; display: flex; gap: 10px;">
+                                        <button class="btn btn-info" onclick="document.querySelector('[data-tab=\'calibration\']').click()">Go To Calibration</button>
+                                        <button class="btn btn-warning">Override & Proceed ⚠️</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 5: PROFILE -->
+                <div id="tab-profile" class="tab-content">
+                    <div class="dashboard-container">
+                        <div style="display: flex; flex-direction: column; flex: 1; gap: 15px;">
+                            <div class="card" style="flex: 1;">
+                                <div class="card-header">Active Profile</div>
+                                <div style="padding: 15px;">
+                                    <h3 id="active-profile-name" style="color: var(--accent-green);">🟢 Drone Alpha — v2.1</h3>
+                                    <p style="color: var(--text-muted); font-size: 0.9rem;">Loaded at 14:30</p>
+                                </div>
+                            </div>
+                            <div class="card" style="flex: 2;">
+                                <div class="card-header">Available Profiles</div>
+                                <div style="padding: 15px;">
+                                    <ul style="list-style-type: none; line-height: 2; margin: 0; padding: 0;">
+                                        <li><label><input type="radio" name="profile" checked> Drone Alpha — v2.1 <span class="badge-success" style="font-size: 0.7rem; padding: 2px 6px;">Active</span></label></li>
+                                        <li><label><input type="radio" name="profile"> Drone Alpha — v2.0</label></li>
+                                        <li><label><input type="radio" name="profile"> Drone Beta — v1.0</label></li>
+                                        <li style="margin-top: 15px;"><button class="btn btn-info" style="padding: 4px 8px; font-size: 0.8rem;">+ New Profile</button></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="card" style="flex: 2;">
+                                <div class="card-header">Actions</div>
+                                <div style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                                    <button class="btn btn-success" id="btn-push-params">Push to FC ▶</button>
+                                    <button class="btn" style="background: #333;">Import .param file</button>
+                                    <button class="btn" style="background: #333;">Export .param file</button>
+                                    <button class="btn btn-warning">Rollback to previous</button>
+                                    <button class="btn btn-danger">Delete this profile</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; flex: 2; gap: 15px;">
+                            <div class="card" style="flex: 1;">
+                                <div class="card-header">Profile Details</div>
+                                <div style="padding: 15px; display: flex; gap: 20px;">
+                                    <div style="flex: 1;">
+                                        <pre id="profile-details-content" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; min-height: 100px; border: none;">Loading details...</pre>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <h4 style="margin-bottom: 10px; color: var(--text-muted);">PARAMETERS</h4>
+                                        <pre style="font-size: 0.85rem; color: #ccc; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; margin: 0;">
+PID_ROLL_P    = 0.135
+PID_ROLL_I    = 0.090
+PID_ROLL_D    = 0.004
+MOT_PWM_MIN   = 1000
+MOT_PWM_MAX   = 2000
+FLIGHT_ALT    = 15.0
+... (47 more params)
+                                        </pre>
+                                        <h4 style="margin-top: 15px; margin-bottom: 10px; color: var(--text-muted);">GEOFENCE</h4>
+                                        <pre style="font-size: 0.85rem; color: #ccc; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; margin: 0;" id="geofence-details">
+(28.6139, 77.2090)
+(28.6139, 77.2093)
+(28.6136, 77.2093)
+(28.6136, 77.2090)
+                                        </pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 6: FLIGHT LOGS -->
+                <div id="tab-logs" class="tab-content">
+                    <div class="dashboard-container">
+                        <div class="card" style="width: 100%;">
+                            <div class="card-header">Flight History</div>
+                            <div style="padding: 15px;">
+                                <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                                    <thead style="background: rgba(0,0,0,0.5);">
+                                        <tr>
+                                            <th style="padding: 10px;">#</th>
+                                            <th style="padding: 10px;">Date</th>
+                                            <th style="padding: 10px;">Duration</th>
+                                            <th style="padding: 10px;">Max Alt</th>
+                                            <th style="padding: 10px;">Detections</th>
+                                            <th style="padding: 10px;">Battery</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                            <td style="padding: 10px;">1</td>
+                                            <td style="padding: 10px;">Jul 12 14:30</td>
+                                            <td style="padding: 10px;">8m 23s</td>
+                                            <td style="padding: 10px;">15.2m</td>
+                                            <td style="padding: 10px; color: var(--accent-green);">3</td>
+                                            <td style="padding: 10px;">72% &rarr; 28%</td>
+                                        </tr>
+                                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                            <td style="padding: 10px;">2</td>
+                                            <td style="padding: 10px;">Jul 11 16:00</td>
+                                            <td style="padding: 10px;">12m 01s</td>
+                                            <td style="padding: 10px;">15.0m</td>
+                                            <td style="padding: 10px; color: var(--accent-green);">7</td>
+                                            <td style="padding: 10px;">100% &rarr; 41%</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 10px;">3</td>
+                                            <td style="padding: 10px;">Jul 10 10:15</td>
+                                            <td style="padding: 10px;">5m 45s</td>
+                                            <td style="padding: 10px;">10.0m</td>
+                                            <td style="padding: 10px; color: var(--text-muted);">0 (test)</td>
+                                            <td style="padding: 10px;">90% &rarr; 65%</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                                    <button class="btn" style="background: #333;">Download .bin log</button>
+                                    <button class="btn" style="background: #333;">Open in UAV Log Viewer</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
     </div>
 
     <script>
         // Inject geofence from backend
-        window.GEOFENCE = {{ geofence | safe }};
+        window.GEOFENCE = {{ geofence | safe | default("[]") }};
     </script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=4"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=7"></script>
 </body>
 </html>

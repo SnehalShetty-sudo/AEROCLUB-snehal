@@ -1,0 +1,10 @@
+name: "Drone Alpha"
+version: "v2.1"
+details:
+  Frame: "X-Frame 450mm"
+  Motors: "T-Motor F40 Pro III"
+  FC: "Pixhawk 2.4.8"
+  ESC: "T-Motor 20A (PWM)"
+  Prop: "5x4.3x3"
+  Camera: "Pi Camera Module 3"
+  AI: "Hailo-8 + YOLOv8n"

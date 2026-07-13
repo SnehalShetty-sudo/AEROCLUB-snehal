@@ -250,4 +250,94 @@ document.addEventListener("DOMContentLoaded", () => {
             addLog('Sent RTL (Abort) command', 'error');
         }
     });
+
+    // --- NEW V2 LOGIC ---
+
+    // Tab Switching Logic
+    const sidebarItems = document.querySelectorAll('.sidebar-item');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    sidebarItems.forEach(item => {
+        item.addEventListener('click', () => {
+            // Remove active from all tabs
+            sidebarItems.forEach(i => i.classList.remove('active'));
+            tabContents.forEach(tc => tc.classList.remove('active-tab'));
+            
+            // Add active to clicked
+            item.classList.add('active');
+            const targetTab = item.getAttribute('data-tab');
+            document.getElementById('tab-' + targetTab).classList.add('active-tab');
+        });
+    });
+
+    // Calibration Logic
+    document.getElementById('btn-calibrate-compass').addEventListener('click', () => {
+        socket.emit('start_calibration', { type: 'compass' });
+        document.getElementById('compass-progress-container').style.display = 'block';
+        addLog('Started Compass Calibration', 'warn');
+    });
+
+    socket.on('calibration_progress', (data) => {
+        if(data.type === 'compass') {
+            const pct = data.progress;
+            document.getElementById('compass-progress-fill').style.width = pct + '%';
+            document.getElementById('compass-progress-text').textContent = `Progress: ${pct}%`;
+            if (pct >= 100) {
+                addLog('Compass Calibration Complete', 'success');
+            }
+        }
+    });
+
+    // Pre-flight check
+    document.getElementById('btn-run-checks').addEventListener('click', async () => {
+        const resultsDiv = document.getElementById('preflight-results');
+        resultsDiv.innerHTML = '<p>Running checks...</p>';
+        try {
+            const response = await fetch('/api/preflight');
+            const data = await response.json();
+            let html = '<ul style="list-style: none; padding: 0;">';
+            data.checks.forEach(check => {
+                const icon = check.passed ? '✅' : (check.warning ? '⚠️' : '❌');
+                html += `<li style="padding: 5px 0;">${icon} <strong style="display:inline-block; width: 150px;">${check.name}</strong> ${check.message}</li>`;
+            });
+            html += '</ul>';
+            
+            html += `<h4 style="margin-top: 15px;">Verdict: ${data.ready ? '🟢 READY' : '🔴 NOT READY'}</h4>`;
+            resultsDiv.innerHTML = html;
+        } catch (e) {
+            resultsDiv.innerHTML = '<p style="color:red">Failed to run checks</p>';
+        }
+    });
+
+    // Profile Management
+    async function loadActiveProfile() {
+        try {
+            const response = await fetch('/api/profiles/active');
+            const data = await response.json();
+            if (data.profile) {
+                document.getElementById('active-profile-name').textContent = data.profile.name;
+                document.getElementById('profile-details-content').textContent = JSON.stringify(data.profile.details, null, 2);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+    
+    // Load profile on start
+    loadActiveProfile();
+
+    document.getElementById('btn-push-params').addEventListener('click', async () => {
+        addLog('Pushing parameters to FC...', 'warn');
+        try {
+            const response = await fetch('/api/profiles/push', { method: 'POST' });
+            const result = await response.json();
+            if (result.success) {
+                addLog('Parameters pushed successfully', 'success');
+            } else {
+                addLog('Failed to push params', 'error');
+            }
+        } catch (e) {
+            addLog('Error pushing params', 'error');
+        }
+    });
 });

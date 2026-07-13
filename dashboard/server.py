@@ -8,7 +8,7 @@ import logging
 import threading
 import cv2
 import numpy as np
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, jsonify
 from flask_socketio import SocketIO
 
 import sys, os
@@ -88,6 +88,11 @@ def handle_disconnect():
     logger.info("Dashboard client disconnected.")
 
 _mission_command_callback = None
+_mav_bridge = None
+
+def set_mav_bridge(bridge):
+    global _mav_bridge
+    _mav_bridge = bridge
 
 def set_mission_command_callback(cb):
     global _mission_command_callback
@@ -101,6 +106,34 @@ def handle_mission_command(data):
     if _mission_command_callback:
         _mission_command_callback(cmd)
     socketio.emit('command_ack', {'command': cmd, 'status': 'received'})
+
+@app.route('/api/preflight')
+def api_preflight():
+    from provisioning.health_check import run_preflight_checks
+    return jsonify(run_preflight_checks(_mav_bridge))
+
+@app.route('/api/profiles/active')
+def api_profiles_active():
+    from provisioning.profile_manager import get_active_profile
+    return jsonify({"profile": get_active_profile()})
+
+@app.route('/api/profiles/push', methods=['POST'])
+def api_profiles_push():
+    from provisioning.param_pusher import push_params
+    success = push_params(_mav_bridge)
+    return jsonify({"success": success})
+
+@socketio.on('start_calibration')
+def handle_start_calibration(data):
+    cal_type = data.get('type')
+    if cal_type == 'compass':
+        def progress_cb(pct):
+            socketio.emit('calibration_progress', {'type': 'compass', 'progress': pct})
+        
+        # Run in background thread
+        from provisioning.calibrator import Calibrator
+        cal = Calibrator(_mav_bridge)
+        threading.Thread(target=cal.start_compass_calibration, args=(progress_cb,)).start()
 
 def push_telemetry(data: dict):
     """Push telemetry data to connected clients."""

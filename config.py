@@ -73,7 +73,7 @@ ROS2_IMAGE_TOPIC = "/down_camera/image"
 # ─── MAVLink / Flight Controller ────────────────────────────────────
 if SIMULATION_MODE:
     FC_CONNECTION_STRING = "tcp:127.0.0.1:5763"
-    FC_MOCK_MODE = False
+    FC_MOCK_MODE = True
 else:
     FC_CONNECTION_STRING = "/dev/ttyACM0"
     FC_MOCK_MODE = False

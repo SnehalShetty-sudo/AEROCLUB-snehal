@@ -44,7 +44,44 @@ class MavlinkBridge:
             "battery_pct": 0,
             "wp_current": 0,
             "wp_total": 0,
+            "gps_fix_type": 0,
+            "gps_sats": 0,
+            "ekf_ok": False,
+            "ekf_flags": 0,
+            "rc_channels": 0,
+            "rc_rssi": 0,
         }
+        self._status_texts = []
+        self._message_callbacks = {}
+        self._callback_lock = threading.Lock()
+
+    def register_message_callback(self, msg_type, callback):
+        """Register a callback for a specific MAVLink message type."""
+        with self._callback_lock:
+            if msg_type not in self._message_callbacks:
+                self._message_callbacks[msg_type] = []
+            self._message_callbacks[msg_type].append(callback)
+
+    def unregister_message_callback(self, msg_type, callback):
+        """Unregister a callback."""
+        with self._callback_lock:
+            if msg_type in self._message_callbacks:
+                self._message_callbacks[msg_type] = [c for c in self._message_callbacks[msg_type] if c != callback]
+
+    def _dispatch_callbacks(self, msg):
+        """Dispatch message to registered callbacks."""
+        msg_type = msg.get_type()
+        with self._callback_lock:
+            callbacks = list(self._message_callbacks.get(msg_type, []))
+        for cb in callbacks:
+            try:
+                cb(msg)
+            except Exception as e:
+                logger.error(f"Callback error for {msg_type}: {e}")
+
+    def get_status_texts(self):
+        with self._telemetry_lock:
+            return list(self._status_texts)
 
     def start(self):
         if self.mock:
@@ -230,6 +267,8 @@ class MavlinkBridge:
                 
             msg_type = msg.get_type()
             
+            self._dispatch_callbacks(msg)
+            
             with self._telemetry_lock:
                 if msg_type == "HEARTBEAT":
                     self._state["armed"] = (msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED) != 0
@@ -251,6 +290,28 @@ class MavlinkBridge:
                     self._state["wp_current"] = msg.seq
                     # wp_total is typically known during upload, we can track it separately
 
+                elif msg_type == "GPS_RAW_INT":
+                    self._state["gps_fix_type"] = msg.fix_type
+                    self._state["gps_sats"] = msg.satellites_visible
+
+                elif msg_type == "EKF_STATUS_REPORT":
+                    self._state["ekf_flags"] = msg.flags
+                    self._state["ekf_ok"] = (msg.flags & 0x01FF) == 0x01FF
+
+                elif msg_type == "RC_CHANNELS":
+                    self._state["rc_channels"] = msg.chancount
+                    self._state["rc_rssi"] = msg.rssi
+
+                elif msg_type == "STATUSTEXT":
+                    text = msg.text
+                    if isinstance(text, bytes):
+                        text = text.decode('utf-8', errors='ignore')
+                    text = text.split('\x00')[0]
+                    logger.info(f"FC STATUSTEXT [{msg.severity}]: {text}")
+                    self._status_texts.append(text)
+                    if len(self._status_texts) > 10:
+                        self._status_texts.pop(0)
+
     def _mock_loop(self):
         """Generate fake telemetry for UI testing."""
         with self._telemetry_lock:
@@ -260,6 +321,12 @@ class MavlinkBridge:
             self._state["lat"] = 28.6139
             self._state["lon"] = 77.2090
             self._state["wp_total"] = 10
+            self._state["gps_fix_type"] = 3
+            self._state["gps_sats"] = 12
+            self._state["ekf_ok"] = True
+            self._state["ekf_flags"] = 0x01FF
+            self._state["rc_channels"] = 8
+            self._state["rc_rssi"] = 200
             
         t = 0
         while not self._stop_event.is_set():

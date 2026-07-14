@@ -1,71 +1,126 @@
 """
 provisioning/health_check.py
-Runs pre-flight diagnostics by querying FC parameters and sensor status.
+Runs pre-flight safety checks on drone telemetry.
 """
+import logging
 
-def run_preflight_checks(mav_bridge=None):
-    """Returns a list of check results."""
-    
+logger = logging.getLogger("health_check")
+
+def run_preflight_checks(mav_bridge):
+    """
+    Returns a dict:
+    {
+        'ready': bool,
+        'message': string,
+        'issues': int,
+        'checks': [ {'name': str, 'passed': bool, 'message': str}, ... ]
+    }
+    """
     if not mav_bridge:
-        return {"ready": False, "checks": [{"name": "Bridge Error", "passed": False, "warning": False, "message": "No MAVLink bridge"}]}
+        return get_verdict([])
         
     tel = mav_bridge.get_telemetry()
+    results = []
     
-    checks = []
-    
-    # 1. Connection
-    conn_passed = tel.get("connected", False)
-    checks.append({
-        "name": "FC Heartbeat", 
-        "passed": conn_passed, 
-        "warning": False, 
-        "message": "Connected" if conn_passed else "Disconnected"
+    # 1. FC Heartbeat
+    connected = tel.get('connected', False)
+    results.append({
+        "name": "FC Connection",
+        "passed": connected,
+        "message": "Connected" if connected else "No heartbeat"
     })
     
-    # 2. GPS Check (Simple heuristic: if we have non-zero lat/lon, we have some fix)
-    lat = tel.get("lat", 0)
-    lon = tel.get("lon", 0)
-    has_gps = abs(lat) > 0.001 and abs(lon) > 0.001
-    checks.append({
+    # 2. GPS Fix
+    fix_type = tel.get('gps_fix_type', 0)
+    sats = tel.get('gps_sats', 0)
+    results.append({
         "name": "GPS Fix",
-        "passed": has_gps,
-        "warning": not has_gps,
-        "message": f"Lat: {lat:.4f}, Lon: {lon:.4f}" if has_gps else "No Fix"
+        "passed": fix_type >= 3,
+        "message": f"3D Fix ({sats} sats)" if fix_type >= 3 else (f"No Fix ({sats} sats)" if fix_type < 3 else "Unknown")
     })
     
-    # 3. Battery Voltage
-    batt_v = tel.get("battery_v", 0.0)
-    batt_pct = tel.get("battery_pct", 0)
-    batt_passed = batt_v > 14.0 # simple threshold
-    checks.append({
+    # 3. GPS Satellites
+    results.append({
+        "name": "GPS Satellites",
+        "passed": sats >= 6,
+        "message": f"{sats} satellites visible" if sats >= 6 else f"Only {sats} satellites (need >=6)"
+    })
+    
+    # 4. Battery Voltage
+    voltage = tel.get('battery_v', 0.0)
+    results.append({
         "name": "Battery Voltage",
-        "passed": batt_passed,
-        "warning": not batt_passed,
-        "message": f"{batt_v:.1f}V ({batt_pct}%)"
+        "passed": voltage > 14.0,
+        "message": f"{voltage:.1f}V (OK for 4S)" if voltage > 14.0 else f"{voltage:.1f}V (Low!)"
     })
     
-    # 4. Flight Mode
-    mode = tel.get("mode", "UNKNOWN")
-    # Usually we want to be in STABILIZE, GUIDED, or AUTO to arm safely
-    mode_safe = mode in ["STABILIZE", "GUIDED", "LOITER"]
-    checks.append({
+    # 5. Battery Level
+    pct = tel.get('battery_pct', 0)
+    results.append({
+        "name": "Battery Level",
+        "passed": pct > 20,
+        "message": f"{pct}%" if pct > 20 else f"{pct}% (Too low)"
+    })
+    
+    # 6. EKF Status
+    ekf = tel.get('ekf_ok', False)
+    results.append({
+        "name": "EKF Health",
+        "passed": ekf,
+        "message": "EKF healthy" if ekf else "EKF not converged"
+    })
+    
+    # 7. RC Receiver
+    rc_ch = tel.get('rc_channels', 0)
+    results.append({
+        "name": "RC Receiver",
+        "passed": rc_ch > 0,
+        "message": f"Active ({rc_ch} ch)" if rc_ch > 0 else "No RC signal"
+    })
+    
+    # 8. Flight Mode
+    mode = tel.get('mode', 'UNKNOWN')
+    valid_modes = ['STABILIZE', 'GUIDED', 'LOITER', 'ALT_HOLD']
+    results.append({
         "name": "Flight Mode",
-        "passed": mode_safe,
-        "warning": not mode_safe,
-        "message": mode
+        "passed": mode in valid_modes,
+        "message": mode if mode in valid_modes else f"{mode} (Change to STABILIZE/GUIDED)"
     })
     
-    # 5. Compass (Mocked for now since we need more advanced MAVLink parsing for MAG_CAL_REPORT)
-    checks.append({
-        "name": "Compass Health", 
-        "passed": True, 
-        "warning": False, 
-        "message": "Offsets OK"
+    # 9. Compass Health
+    compass_ok = True
+    compass_msg = "Offsets OK"
+    try:
+        if hasattr(mav_bridge, 'get_status_texts'):
+            texts = mav_bridge.get_status_texts()
+            for t in texts:
+                t_lower = t.lower()
+                if 'compass' in t_lower or 'mag' in t_lower:
+                    if 'error' in t_lower or 'bad' in t_lower or 'inconsistent' in t_lower or 'interference' in t_lower:
+                        compass_ok = False
+                        compass_msg = "Warnings found in log"
+                        break
+    except Exception as e:
+        logger.warning(f"Failed to check compass texts: {e}")
+        
+    results.append({
+        "name": "Compass Health",
+        "passed": compass_ok,
+        "message": compass_msg
     })
     
-    is_ready = all(c["passed"] for c in checks)
+    return get_verdict(results)
+
+def get_verdict(results):
+    if not results:
+        return {'ready': False, 'message': 'No checks run', 'issues': 1, 'checks': []}
+        
+    issues = sum(1 for r in results if not r['passed'])
+    ready = issues == 0
     
     return {
-        "ready": is_ready,
-        "checks": checks
+        'ready': ready,
+        'message': "ALL CHECKS PASSED — READY FOR FLIGHT" if ready else f"{issues} ISSUES FOUND — NOT READY",
+        'issues': issues,
+        'checks': results
     }

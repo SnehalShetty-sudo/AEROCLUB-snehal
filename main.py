@@ -8,10 +8,21 @@ import threading
 import cv2
 import numpy as np
 import sys
+import json
+from pathlib import Path
 
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("main")
+
+def log_flight(stats):
+    from config import LOG_DIR
+    log_file = LOG_DIR / "flight_logs.jsonl"
+    try:
+        with open(log_file, "a") as f:
+            f.write(json.dumps(stats) + "\n")
+    except Exception as e:
+        logger.error(f"Failed to write log: {e}")
 
 from config import COLORS, CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS, SIMULATION_MODE, ROS2_IMAGE_TOPIC, GEOFENCE_POLYGON, GRID_CELL_SIZE
 from telemetry.mavlink_bridge import MavlinkBridge
@@ -163,6 +174,11 @@ def main():
     fps_timer = time.time()
     frame_count = 0
     
+    flight_start_time = None
+    max_alt = 0.0
+    start_batt = 0
+    was_armed = False
+    
     try:
         while True:
             # Capture
@@ -187,7 +203,7 @@ def main():
                 # Map all detections (person, triangle, square, rectangle, etc.)
                 res = memory_grid.add_detection(
                     tel["lat"], tel["lon"], tel["alt"], tel["heading"],
-                    frame.shape[1], frame.shape[0], d.bbox
+                    frame.shape[1], frame.shape[0], d.bbox, class_name=d.class_name
                 )
                 if res.get("is_new"):
                     from dashboard.server import push_new_detection
@@ -206,9 +222,31 @@ def main():
                 last_telemetry_push = now
                 
             if now - last_detection_push >= 0.2:
-                # Send the cumulative unique count!
-                push_detection_stats({'counts': {'person': memory_grid.get_unique_count()}})
+                # Send the cumulative unique counts
+                counts = memory_grid.get_counts_by_class()
+                push_detection_stats({'counts': counts})
                 last_detection_push = now
+                
+            # Flight Logging
+            if tel["armed"] and not was_armed:
+                flight_start_time = time.time()
+                start_batt = tel["battery_pct"]
+                max_alt = tel["alt"]
+                was_armed = True
+            elif not tel["armed"] and was_armed:
+                duration = time.time() - flight_start_time
+                log_flight({
+                    "date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "duration": duration,
+                    "max_alt": max_alt,
+                    "detections": memory_grid.get_unique_count(),
+                    "battery_start": start_batt,
+                    "battery_end": tel["battery_pct"]
+                })
+                was_armed = False
+                
+            if tel["armed"]:
+                max_alt = max(max_alt, tel["alt"])
                 
             # FPS
             frame_count += 1

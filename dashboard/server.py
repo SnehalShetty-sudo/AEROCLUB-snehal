@@ -112,28 +112,83 @@ def api_preflight():
     from provisioning.health_check import run_preflight_checks
     return jsonify(run_preflight_checks(_mav_bridge))
 
+@app.route('/api/profiles')
+def api_profiles():
+    from provisioning.profile_manager import list_profiles
+    return jsonify({"profiles": list_profiles()})
+
 @app.route('/api/profiles/active')
 def api_profiles_active():
     from provisioning.profile_manager import get_active_profile
     return jsonify({"profile": get_active_profile()})
 
+from flask import request
+@app.route('/api/profiles/switch', methods=['POST'])
+def api_profiles_switch():
+    data = request.get_json() or {}
+    name = data.get('name')
+    if not name:
+        return jsonify({"success": False, "error": "No name provided"})
+    from provisioning.profile_manager import set_active_profile
+    success = set_active_profile(name)
+    return jsonify({"success": success})
+
 @app.route('/api/profiles/push', methods=['POST'])
 def api_profiles_push():
     from provisioning.param_pusher import push_params
-    success = push_params(_mav_bridge)
-    return jsonify({"success": success})
+    result = push_params(_mav_bridge)
+    return jsonify(result)
+
+@app.route('/api/logs')
+def api_logs():
+    from config import LOG_DIR
+    import json
+    log_file = LOG_DIR / "flight_logs.jsonl"
+    logs = []
+    if log_file.exists():
+        with open(log_file, "r") as f:
+            for line in f:
+                try:
+                    logs.append(json.loads(line))
+                except:
+                    pass
+    return jsonify({"logs": list(reversed(logs))})
+
+_calibrator = None
 
 @socketio.on('start_calibration')
 def handle_start_calibration(data):
+    global _calibrator
     cal_type = data.get('type')
+    
+    from provisioning.calibrator import Calibrator
+    if not _calibrator:
+        _calibrator = Calibrator(_mav_bridge)
+        
     if cal_type == 'compass':
         def progress_cb(pct):
             socketio.emit('calibration_progress', {'type': 'compass', 'progress': pct})
+        threading.Thread(target=_calibrator.start_compass_calibration, args=(progress_cb,)).start()
         
-        # Run in background thread
-        from provisioning.calibrator import Calibrator
-        cal = Calibrator(_mav_bridge)
-        threading.Thread(target=cal.start_compass_calibration, args=(progress_cb,)).start()
+    elif cal_type == 'accel':
+        def progress_cb(pct):
+            socketio.emit('calibration_progress', {'type': 'accel', 'progress': pct})
+        def step_cb(step, text, wait_for_user=False):
+            socketio.emit('calibration_step', {'type': 'accel', 'step': step, 'text': text, 'wait_for_user': wait_for_user})
+        threading.Thread(target=_calibrator.start_accel_calibration, args=(progress_cb, step_cb)).start()
+        
+    elif cal_type == 'esc':
+        def step_cb(step, text, wait_for_user=False):
+            socketio.emit('calibration_step', {'type': 'esc', 'step': step, 'text': text, 'wait_for_user': wait_for_user})
+        threading.Thread(target=_calibrator.start_esc_calibration, args=(step_cb,)).start()
+
+@app.route('/api/calibration/continue', methods=['POST'])
+def api_calibration_continue():
+    global _calibrator
+    if _calibrator:
+        _calibrator.continue_calibration()
+        return jsonify({"success": True})
+    return jsonify({"success": False, "error": "No calibration running"})
 
 def push_telemetry(data: dict):
     """Push telemetry data to connected clients."""

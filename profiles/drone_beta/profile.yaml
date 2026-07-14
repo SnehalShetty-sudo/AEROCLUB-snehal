@@ -1,0 +1,10 @@
+name: Drone Beta
+version: "1.0"
+frame: H-frame 550mm
+motors: SunnySky 2212 980KV
+esc: BLHeli_32 30A
+fc: Pixhawk 4 Mini
+propellers: 10x4.5
+battery: 4S 5000mAh
+camera: Pi Camera V3
+notes: Heavy-lift platform for payload testing

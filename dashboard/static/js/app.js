@@ -87,6 +87,20 @@ document.addEventListener("DOMContentLoaded", () => {
         if(data.lat !== undefined && data.lon !== undefined && window.GEOFENCE) {
             drawRadar(data.lat, data.lon, data.heading || 0);
         }
+        
+        // Update Map Marker
+        if(window.droneMarker && data.lat !== undefined && data.lon !== undefined) {
+            const newLatLng = new L.LatLng(data.lat, data.lon);
+            window.droneMarker.setLatLng(newLatLng);
+            
+            // Auto-center map on first GPS fix
+            if (!window.mapHasCentered) {
+                if(window.droneMap) {
+                    window.droneMap.panTo(newLatLng);
+                    window.mapHasCentered = true;
+                }
+            }
+        }
     });
 
     // Radar Widget Logic
@@ -277,6 +291,22 @@ document.addEventListener("DOMContentLoaded", () => {
         addLog('Started Compass Calibration', 'warn');
     });
 
+    const btnAccel = document.getElementById('btn-calibrate-accel');
+    if (btnAccel) {
+        btnAccel.addEventListener('click', () => {
+            socket.emit('start_calibration', { type: 'accel' });
+            addLog('Started Accel Calibration', 'warn');
+        });
+    }
+
+    const btnEsc = document.getElementById('btn-calibrate-esc');
+    if (btnEsc) {
+        btnEsc.addEventListener('click', () => {
+            socket.emit('start_calibration', { type: 'esc' });
+            addLog('Started ESC Calibration', 'warn');
+        });
+    }
+
     socket.on('calibration_progress', (data) => {
         if(data.type === 'compass') {
             const pct = data.progress;
@@ -285,46 +315,137 @@ document.addEventListener("DOMContentLoaded", () => {
             if (pct >= 100) {
                 addLog('Compass Calibration Complete', 'success');
             }
+        } else if (data.type === 'accel') {
+            addLog(`Accel Progress: ${data.progress}%`, 'info');
+            if (data.progress >= 100) {
+                addLog('Accel Calibration Complete', 'success');
+            }
+        }
+    });
+
+    socket.on('calibration_step', async (data) => {
+        // Log the step instruction
+        addLog(`[${data.type.toUpperCase()}] ${data.text}`, 'warn');
+        // If it requires user to click continue
+        if (data.wait_for_user) {
+            // Very simple confirm dialog for continuing
+            if (confirm(`Calibration Step:\n${data.text}\n\nClick OK when done.`)) {
+                await fetch('/api/calibration/continue', { method: 'POST' });
+                addLog('User confirmed step, continuing...', 'info');
+            }
         }
     });
 
     // Pre-flight check
     document.getElementById('btn-run-checks').addEventListener('click', async () => {
         const resultsDiv = document.getElementById('preflight-results');
+        const verdictDiv = document.getElementById('preflight-verdict');
         resultsDiv.innerHTML = '<p>Running checks...</p>';
         try {
             const response = await fetch('/api/preflight');
             const data = await response.json();
             let html = '<ul style="list-style: none; padding: 0;">';
             data.checks.forEach(check => {
-                const icon = check.passed ? '✅' : (check.warning ? '⚠️' : '❌');
+                const icon = check.passed ? '<i class="fa-solid fa-check" style="color: var(--accent-green)"></i>' : (check.warning ? '<i class="fa-solid fa-triangle-exclamation" style="color: var(--accent-orange)"></i>' : '<i class="fa-solid fa-xmark" style="color: var(--badge-danger-bg)"></i>');
                 html += `<li style="padding: 5px 0;">${icon} <strong style="display:inline-block; width: 150px;">${check.name}</strong> ${check.message}</li>`;
             });
             html += '</ul>';
-            
-            html += `<h4 style="margin-top: 15px;">Verdict: ${data.ready ? '🟢 READY' : '🔴 NOT READY'}</h4>`;
             resultsDiv.innerHTML = html;
+            
+            if (verdictDiv) {
+                if (data.ready) {
+                    verdictDiv.innerHTML = `<h3 style="color: var(--accent-green);"><i class="fa-solid fa-circle-check"></i> READY TO FLY</h3><p style="margin-top: 5px; color: var(--text-muted);">All automated checks passed.</p>`;
+                } else {
+                    verdictDiv.innerHTML = `<h3 style="color: var(--accent-orange);"><i class="fa-solid fa-circle-exclamation"></i> ${data.issues} ISSUES — NOT READY</h3><p style="margin-top: 5px; color: var(--text-muted);">Resolve issues before flight.</p>`;
+                }
+            }
         } catch (e) {
             resultsDiv.innerHTML = '<p style="color:red">Failed to run checks</p>';
         }
     });
 
     // Profile Management
-    async function loadActiveProfile() {
+    async function loadProfiles() {
         try {
-            const response = await fetch('/api/profiles/active');
-            const data = await response.json();
-            if (data.profile) {
-                document.getElementById('active-profile-name').textContent = data.profile.name;
-                document.getElementById('profile-details-content').textContent = JSON.stringify(data.profile.details, null, 2);
+            // Load active profile
+            const activeRes = await fetch('/api/profiles/active');
+            const activeData = await activeRes.json();
+            if (activeData.profile) {
+                const p = activeData.profile;
+                document.getElementById('active-profile-name').textContent = p.name + (p.version ? ` — v${p.version}` : '');
+                let detailsStr = `Name: ${p.name}\nFrame: ${p.frame || 'N/A'}\nMotors: ${p.motors || 'N/A'}\nFC: ${p.fc || 'N/A'}`;
+                document.getElementById('profile-details-content').textContent = detailsStr;
+                
+                // Also update Overview Tab drone identity
+                const ovName = document.getElementById('ov-drone-name');
+                if(ovName) ovName.textContent = p.name;
+                const ovFrame = document.getElementById('ov-drone-frame');
+                if(ovFrame) ovFrame.textContent = p.frame || 'N/A';
+            }
+
+            // Load all profiles list
+            const res = await fetch('/api/profiles');
+            const data = await res.json();
+            const listEl = document.getElementById('profile-list');
+            if (listEl && data.profiles) {
+                listEl.innerHTML = '';
+                data.profiles.forEach(prof => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<label><input type="radio" name="profile" value="${prof.id}" ${prof.active ? 'checked' : ''}> ${prof.name} — v${prof.version} ${prof.active ? '<span class="badge-success" style="font-size: 0.7rem; padding: 2px 6px;">Active</span>' : ''}</label>`;
+                    
+                    const radio = li.querySelector('input');
+                    radio.addEventListener('change', async (e) => {
+                        if (e.target.checked && !prof.active) {
+                            if(confirm(`Switch to profile: ${prof.name}?`)) {
+                                await fetch('/api/profiles/switch', {
+                                    method: 'POST', 
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({name: prof.id})
+                                });
+                                location.reload(); // Reload dashboard
+                            }
+                        }
+                    });
+                    listEl.appendChild(li);
+                });
             }
         } catch (e) {
             console.error(e);
         }
     }
     
-    // Load profile on start
-    loadActiveProfile();
+    async function loadFlightLogs() {
+        try {
+            const res = await fetch('/api/logs');
+            const data = await res.json();
+            const tbody = document.getElementById('flight-logs-tbody');
+            if (tbody && data.logs) {
+                tbody.innerHTML = '';
+                data.logs.forEach((log, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                    
+                    const min = Math.floor(log.duration / 60);
+                    const sec = Math.floor(log.duration % 60);
+                    
+                    tr.innerHTML = `
+                        <td style="padding: 10px;">${data.logs.length - idx}</td>
+                        <td style="padding: 10px;">${log.date}</td>
+                        <td style="padding: 10px;">${min}m ${sec}s</td>
+                        <td style="padding: 10px;">${log.max_alt.toFixed(1)}m</td>
+                        <td style="padding: 10px; color: var(--accent-green);">${log.detections}</td>
+                        <td style="padding: 10px;">${log.battery_start}% &rarr; ${log.battery_end}%</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        } catch(e) {
+            console.error('Failed to load logs:', e);
+        }
+    }
+    
+    loadProfiles();
+    loadFlightLogs();
 
     document.getElementById('btn-push-params').addEventListener('click', async () => {
         addLog('Pushing parameters to FC...', 'warn');
@@ -339,5 +460,84 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (e) {
             addLog('Error pushing params', 'error');
         }
+    });
+
+    // --- Leaflet Map Integration ---
+    if (document.getElementById('map')) {
+        // Initialize Map
+        const map = L.map('map').setView([-35.363, 149.165], 18); // Default to SITL location
+        window.droneMap = map;
+        
+        // Add Dark Tile Layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+            maxZoom: 20
+        }).addTo(map);
+
+        // Drone Marker SVG
+        const droneSvg = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 8px rgba(34,211,238,0.8));">
+                <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>
+                <path d="M12 14v4"/>
+                <path d="M12 18m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>
+                <path d="M10.5 12h-4.5"/>
+                <path d="M13.5 12h4.5"/>
+                <path d="M18 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>
+                <path d="M6 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>
+                <path d="M18 11v-2"/>
+                <path d="M17 7h2"/>
+                <path d="M6 11v-2"/>
+                <path d="M5 7h2"/>
+            </svg>
+        `;
+        
+        const droneIcon = L.divIcon({
+            html: droneSvg,
+            className: 'drone-marker-icon',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+        
+        window.droneMarker = L.marker([-35.363, 149.165], {icon: droneIcon}).addTo(map);
+        window.mapHasCentered = false;
+
+        // Draw Geofence if available
+        if (window.GEOFENCE && window.GEOFENCE.length > 0) {
+            const polygon = L.polygon(window.GEOFENCE, {
+                color: 'var(--accent-orange)',
+                fillColor: 'var(--accent-orange)',
+                fillOpacity: 0.1,
+                weight: 2,
+                dashArray: '5, 5'
+            }).addTo(map);
+            map.fitBounds(polygon.getBounds());
+        }
+    }
+
+    // --- Layout Toggles ---
+    const layoutBtns = document.querySelectorAll('.btn-layout');
+    const layoutContainer = document.getElementById('mission-layout-container');
+    
+    layoutBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active from all
+            layoutBtns.forEach(b => b.classList.remove('active'));
+            // Add active to clicked
+            btn.classList.add('active');
+            
+            // Remove old layout classes
+            layoutContainer.classList.remove('layout-video-main', 'layout-split', 'layout-map-main', 'layout-video-only');
+            
+            // Add new layout class
+            const layoutClass = btn.getAttribute('data-layout');
+            layoutContainer.classList.add(layoutClass);
+
+            // Invalidate Map Size so it redraws properly after flexbox transition
+            if (window.droneMap) {
+                setTimeout(() => {
+                    window.droneMap.invalidateSize();
+                }, 400); // Matches CSS transition time
+            }
+        });
     });
 });

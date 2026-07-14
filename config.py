@@ -73,10 +73,14 @@ ROS2_IMAGE_TOPIC = "/down_camera/image"
 # ─── MAVLink / Flight Controller ────────────────────────────────────
 if SIMULATION_MODE:
     FC_CONNECTION_STRING = "tcp:127.0.0.1:5763"
-    FC_MOCK_MODE = True
+    FC_MOCK_MODE = False
 else:
     FC_CONNECTION_STRING = "/dev/ttyACM0"
     FC_MOCK_MODE = False
+    
+# When SIMULATION_MODE=True and DRONE_MOCK not set, we connect to real SITL.
+# Set DRONE_MOCK=true to use fake telemetry without SITL.
+FC_MOCK_MODE = os.environ.get('DRONE_MOCK', str(FC_MOCK_MODE)).lower() == 'true'
     
 FC_BAUD = 115200
 

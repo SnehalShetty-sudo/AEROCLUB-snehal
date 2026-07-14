@@ -5,6 +5,7 @@ mission/memory_grid.py — Maps local pixel detections to global grid cells for 
 import math
 import pyproj
 import logging
+from collections import defaultdict
 
 logger = logging.getLogger("memory_grid")
 
@@ -13,6 +14,7 @@ class MemoryGrid:
         self.geofence = geofence_polygon
         self.cell_size = cell_size
         self.detected_cells = set() # Set of unique (grid_x, grid_y) tuples where a person was seen
+        self._detections_by_class = defaultdict(set)
         
         if len(geofence_polygon) < 3:
             return
@@ -24,7 +26,7 @@ class MemoryGrid:
         self.transformer_to_local = pyproj.Transformer.from_crs(self.proj_wgs84, self.proj_local, always_xy=True)
         self.transformer_to_wgs84 = pyproj.Transformer.from_crs(self.proj_local, self.proj_wgs84, always_xy=True)
         
-    def add_detection(self, drone_lat, drone_lon, drone_alt, drone_heading, img_width, img_height, bbox):
+    def add_detection(self, drone_lat, drone_lon, drone_alt, drone_heading, img_width, img_height, bbox, class_name="unknown"):
         """
         Calculates the real-world ground coordinate of the bounding box centroid,
         and adds it to the memory grid. Returns detailed detection info.
@@ -77,7 +79,12 @@ class MemoryGrid:
         
         if cell not in self.detected_cells:
             self.detected_cells.add(cell)
-            logger.info(f"New person discovered at grid {cell_id} ({target_lat:.6f}, {target_lon:.6f})! Total: {len(self.detected_cells)}")
+            self._detections_by_class[class_name].add(cell)
+            logger.info(f"New {class_name} discovered at grid {cell_id} ({target_lat:.6f}, {target_lon:.6f})! Total: {len(self.detected_cells)}")
+            is_new = True
+        elif cell not in self._detections_by_class[class_name]:
+            self._detections_by_class[class_name].add(cell)
+            logger.info(f"New {class_name} discovered at grid {cell_id} ({target_lat:.6f}, {target_lon:.6f})!")
             is_new = True
             
         return {
@@ -89,3 +96,11 @@ class MemoryGrid:
         
     def get_unique_count(self):
         return len(self.detected_cells)
+        
+    def get_counts_by_class(self):
+        return {
+            "person": len(self._detections_by_class["person"]),
+            "triangle": len(self._detections_by_class["triangle"]),
+            "square": len(self._detections_by_class["square"]),
+            "rectangle": len(self._detections_by_class["rectangle"])
+        }

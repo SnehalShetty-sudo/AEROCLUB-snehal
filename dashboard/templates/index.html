@@ -3,44 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drone Dashboard V2</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=7">
+    <title>Drone GCS — Aerial Detection System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=9">
     <!-- Socket.IO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
     <div class="app-layout">
         <!-- Sidebar -->
         <nav class="sidebar">
             <div class="sidebar-item" data-tab="overview" title="Overview">
-                <span class="icon">🏠</span>
+                <span class="icon"><i class="fa-solid fa-house"></i></span>
                 <span class="label">Overview</span>
             </div>
             <div class="sidebar-item active" data-tab="mission" title="Mission Control">
-                <span class="icon">🚀</span>
+                <span class="icon"><i class="fa-solid fa-rocket"></i></span>
                 <span class="label">Mission</span>
             </div>
             <div class="sidebar-item" data-tab="calibration" title="Calibration">
-                <span class="icon">🔧</span>
+                <span class="icon"><i class="fa-solid fa-wrench"></i></span>
                 <span class="label">Calibration</span>
             </div>
             <div class="sidebar-item" data-tab="preflight" title="Pre-Flight Checks">
-                <span class="icon">📋</span>
+                <span class="icon"><i class="fa-solid fa-clipboard-check"></i></span>
                 <span class="label">Pre-Flight</span>
             </div>
             <div class="sidebar-item" data-tab="profile" title="Drone Profile">
-                <span class="icon">⚙️</span>
+                <span class="icon"><i class="fa-solid fa-gear"></i></span>
                 <span class="label">Profile</span>
             </div>
             <div class="sidebar-item" data-tab="logs" title="Flight Logs">
-                <span class="icon">📊</span>
+                <span class="icon"><i class="fa-solid fa-chart-simple"></i></span>
                 <span class="label">Logs</span>
             </div>
         </nav>
 
         <div class="main-content">
             <div class="top-bar">
-                <div class="title">🚁 Aerial Detection System <span id="phase-indicator" class="status badge-info" style="margin-left: 10px;">IN-FLIGHT</span></div>
+                <div class="title"><i class="fa-solid fa-helicopter"></i> Aerial Detection System <span id="phase-indicator" class="status badge-info" style="margin-left: 10px;">IN-FLIGHT</span></div>
                 <div class="status-indicators">
                     <span id="conn-status" class="status badge-warning">Connecting...</span>
                     <span id="arm-status" class="status badge-danger">Disarmed</span>
@@ -56,8 +64,8 @@
                             <div class="card" style="flex: 1;">
                                 <div class="card-header">Drone Identity</div>
                                 <div style="padding: 15px;">
-                                    <p><strong>Name:</strong> Drone Alpha</p>
-                                    <p><strong>Frame:</strong> X-frame 450mm</p>
+                                    <p><strong>Name:</strong> <span id="ov-drone-name">Drone Alpha</span></p>
+                                    <p><strong>Frame:</strong> <span id="ov-drone-frame">X-frame 450mm</span></p>
                                     <p><strong>FC:</strong> Pixhawk 2.4.8</p>
                                     <p><strong>Profile:</strong> v2.1 (loaded)</p>
                                     <p><strong>Serial:</strong> PX4-0x3FA29</p>
@@ -84,17 +92,17 @@
                         <div class="card" style="flex: 1;">
                             <div class="card-header">System Health & Readiness</div>
                             <div style="padding: 15px;">
-                                <p>✅ FC Connected</p>
-                                <p>✅ GPS: 3D Fix (12)</p>
-                                <p>✅ Battery: 16.2V</p>
-                                <p>⚠️ Compass: Needs recalibration</p>
-                                <p>✅ Accel: Calibrated</p>
-                                <p>✅ ESC: Calibrated</p>
-                                <p>✅ RC Link: Strong</p>
+                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> FC Connected</p>
+                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> GPS: 3D Fix (12)</p>
+                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> Battery: 16.2V</p>
+                                <p><i class="fa-solid fa-triangle-exclamation" style="color: var(--accent-orange)"></i> Compass: Needs recalibration</p>
+                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> Accel: Calibrated</p>
+                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> ESC: Calibrated</p>
+                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> RC Link: Strong</p>
                                 <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
                                 <h4 style="margin-bottom: 10px; color: var(--text-muted);">READINESS</h4>
                                 <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
-                                    <span style="color: var(--accent-orange);">🟡 NOT READY (1 issue)</span>
+                                    <span style="color: var(--accent-orange);"><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-orange)"></i> NOT READY (1 issue)</span>
                                     <button class="btn btn-success" onclick="document.querySelector('[data-tab=\'preflight\']').click()">Run Pre-Flight ▶</button>
                                 </div>
                             </div>
@@ -104,7 +112,7 @@
 
                 <!-- TAB 2: MISSION (Original Dashboard) -->
                 <div id="tab-mission" class="tab-content active-tab">
-                    <div class="dashboard-container">
+                    <div class="dashboard-container layout-video-main" id="mission-layout-container">
                         <!-- Left Panel: Video Feed -->
                         <div class="video-panel card">
                             <div class="card-header">Live Feed (annotated)</div>
@@ -112,9 +120,16 @@
                                 <img id="video-stream" src="/video_feed" alt="Video stream offline">
                             </div>
                             <div class="mission-controls">
-                                <button id="btn-start" class="btn btn-success">Start Mission</button>
-                                <button id="btn-pause" class="btn btn-warning">Pause</button>
-                                <button id="btn-rtl" class="btn btn-danger">RTL (Abort)</button>
+                                <div style="display: flex; gap: 10px; flex: 1;">
+                                    <button id="btn-start" class="btn btn-success">Start Mission</button>
+                                    <button id="btn-pause" class="btn btn-warning">Pause</button>
+                                    <button id="btn-rtl" class="btn btn-danger">RTL (Abort)</button>
+                                </div>
+                                <div class="layout-toggles" style="display: flex; gap: 5px;">
+                                    <button class="btn btn-layout active" data-layout="layout-video-main" title="Video Focus"><i class="fa-solid fa-video"></i></button>
+                                    <button class="btn btn-layout" data-layout="layout-split" title="Split Screen"><i class="fa-solid fa-columns"></i></button>
+                                    <button class="btn btn-layout" data-layout="layout-map-main" title="Map Focus"><i class="fa-solid fa-map"></i></button>
+                                </div>
                             </div>
                             <div class="mission-progress-container">
                                 <div class="progress-info">
@@ -127,6 +142,12 @@
                             </div>
                         </div>
 
+                        <!-- Center Panel: Map HUD -->
+                        <div class="map-panel card" id="map-panel">
+                            <div class="card-header">Live Map HUD</div>
+                            <div id="map" style="flex: 1; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; z-index: 1;"></div>
+                        </div>
+
                         <!-- Right Panel: Stats & Telemetry -->
                         <div class="side-panel">
                             
@@ -135,22 +156,22 @@
                                 <div class="card-header">Detection Summary</div>
                                 <div class="stats-grid">
                                     <div class="stat-box person">
-                                        <div class="stat-icon">👤</div>
+                                        <div class="stat-icon"><i class="fa-solid fa-person"></i></div>
                                         <div class="stat-val" id="count-person">0</div>
                                         <div class="stat-label">Persons</div>
                                     </div>
                                     <div class="stat-box shape-tri">
-                                        <div class="stat-icon">🔺</div>
+                                        <div class="stat-icon"><i class="fa-solid fa-play" style="transform: rotate(-90deg);"></i></div>
                                         <div class="stat-val" id="count-triangle">0</div>
                                         <div class="stat-label">Triangles</div>
                                     </div>
                                     <div class="stat-box shape-sq">
-                                        <div class="stat-icon">🟦</div>
+                                        <div class="stat-icon"><i class="fa-solid fa-square"></i></div>
                                         <div class="stat-val" id="count-square">0</div>
                                         <div class="stat-label">Squares</div>
                                     </div>
                                     <div class="stat-box shape-rect">
-                                        <div class="stat-icon">🟪</div>
+                                        <div class="stat-icon"><i class="fa-solid fa-square" style="color: #b057da;"></i></div>
                                         <div class="stat-val" id="count-rectangle">0</div>
                                         <div class="stat-label">Rectangles</div>
                                     </div>
@@ -222,12 +243,12 @@
                     <div class="dashboard-container" style="flex-direction: column;">
                         <div style="display: flex; gap: 15px; flex: 2;">
                             <div class="card" style="flex: 1;">
-                                <div class="card-header">⚡ ESC Calibration</div>
+                                <div class="card-header"><i class="fa-solid fa-bolt"></i> ESC Calibration</div>
                                 <div style="padding: 15px;">
-                                    <p><strong>Status:</strong> ✅ Done</p>
+                                    <p><strong>Status:</strong> <i class="fa-solid fa-check" style="color: var(--accent-green)"></i> Done</p>
                                     <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 10</p>
                                     <p style="margin-top: 10px;">T-Motor 20A (PWM)</p>
-                                    <button class="btn btn-warning" style="margin-top: 15px; width: 100%;">Recalibrate</button>
+                                    <button class="btn btn-warning" style="margin-top: 15px; width: 100%;" id="btn-calibrate-esc">Recalibrate</button>
                                     <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
                                     <p style="color: var(--text-muted); font-size: 0.9rem;"><strong>How it works:</strong></p>
                                     <ol style="padding-left: 20px; font-size: 0.85rem; color: #ccc; margin-top: 10px; line-height: 1.6;">
@@ -235,17 +256,17 @@
                                         <li>Power off drone</li>
                                         <li>Power on drone</li>
                                         <li>Wait for beep</li>
-                                        <li>Done ✅</li>
+                                        <li>Done <i class="fa-solid fa-check" style="color: var(--accent-green)"></i></li>
                                     </ol>
                                 </div>
                             </div>
                             <div class="card" style="flex: 1;">
-                                <div class="card-header">📐 Accel Calibration</div>
+                                <div class="card-header"><i class="fa-solid fa-ruler-combined"></i> Accel Calibration</div>
                                 <div style="padding: 15px;">
-                                    <p><strong>Status:</strong> ✅ Done</p>
+                                    <p><strong>Status:</strong> <i class="fa-solid fa-check" style="color: var(--accent-green)"></i> Done</p>
                                     <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 10</p>
                                     <p style="margin-top: 10px;">Mode: Simple Lvl or Full 6-Axis</p>
-                                    <button class="btn btn-warning" style="margin-top: 15px; width: 100%;">Recalibrate</button>
+                                    <button class="btn btn-warning" style="margin-top: 15px; width: 100%;" id="btn-calibrate-accel">Recalibrate</button>
                                     <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
                                     <p style="color: var(--text-muted); font-size: 0.9rem;"><strong>Step 1 of 1:</strong></p>
                                     <ol style="padding-left: 20px; font-size: 0.85rem; color: #ccc; margin-top: 10px; line-height: 1.6;">
@@ -255,9 +276,9 @@
                                 </div>
                             </div>
                             <div class="card" style="flex: 1;">
-                                <div class="card-header">🧭 Compass Calibration</div>
+                                <div class="card-header"><i class="fa-regular fa-compass"></i> Compass Calibration</div>
                                 <div style="padding: 15px;">
-                                    <p><strong>Status:</strong> ⚠️ Needed</p>
+                                    <p><strong>Status:</strong> <i class="fa-solid fa-triangle-exclamation" style="color: var(--accent-orange)"></i> Needed</p>
                                     <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 03</p>
                                     <p style="margin-top: 10px;">Type: Onboard</p>
                                     <button class="btn btn-success" style="margin-top: 15px; width: 100%;" id="btn-calibrate-compass">Start Calibration</button>
@@ -314,11 +335,11 @@ ESC Range:       PWM MIN=1000   PWM MAX=2000
                                 </div>
                                 <hr style="border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
                                 <div id="preflight-verdict" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px;">
-                                    <h3 style="color: var(--accent-orange);">🟡 1 ISSUE — NOT READY</h3>
+                                    <h3 style="color: var(--accent-orange);"><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-orange)"></i> 1 ISSUE — NOT READY</h3>
                                     <p style="margin-top: 5px; color: var(--text-muted);">Fix compass interference before flight, and complete manual checks.</p>
                                     <div style="margin-top: 15px; display: flex; gap: 10px;">
                                         <button class="btn btn-info" onclick="document.querySelector('[data-tab=\'calibration\']').click()">Go To Calibration</button>
-                                        <button class="btn btn-warning">Override & Proceed ⚠️</button>
+                                        <button class="btn btn-warning">Override & Proceed <i class="fa-solid fa-triangle-exclamation"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -333,14 +354,14 @@ ESC Range:       PWM MIN=1000   PWM MAX=2000
                             <div class="card" style="flex: 1;">
                                 <div class="card-header">Active Profile</div>
                                 <div style="padding: 15px;">
-                                    <h3 id="active-profile-name" style="color: var(--accent-green);">🟢 Drone Alpha — v2.1</h3>
+                                    <h3 id="active-profile-name" style="color: var(--accent-green);"><i class="fa-solid fa-circle-check" style="color: var(--accent-green)"></i> Drone Alpha — v2.1</h3>
                                     <p style="color: var(--text-muted); font-size: 0.9rem;">Loaded at 14:30</p>
                                 </div>
                             </div>
                             <div class="card" style="flex: 2;">
                                 <div class="card-header">Available Profiles</div>
                                 <div style="padding: 15px;">
-                                    <ul style="list-style-type: none; line-height: 2; margin: 0; padding: 0;">
+                                    <ul id="profile-list" style="list-style-type: none; line-height: 2; margin: 0; padding: 0;">
                                         <li><label><input type="radio" name="profile" checked> Drone Alpha — v2.1 <span class="badge-success" style="font-size: 0.7rem; padding: 2px 6px;">Active</span></label></li>
                                         <li><label><input type="radio" name="profile"> Drone Alpha — v2.0</label></li>
                                         <li><label><input type="radio" name="profile"> Drone Beta — v1.0</label></li>
@@ -408,31 +429,8 @@ FLIGHT_ALT    = 15.0
                                             <th style="padding: 10px;">Battery</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                            <td style="padding: 10px;">1</td>
-                                            <td style="padding: 10px;">Jul 12 14:30</td>
-                                            <td style="padding: 10px;">8m 23s</td>
-                                            <td style="padding: 10px;">15.2m</td>
-                                            <td style="padding: 10px; color: var(--accent-green);">3</td>
-                                            <td style="padding: 10px;">72% &rarr; 28%</td>
-                                        </tr>
-                                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                            <td style="padding: 10px;">2</td>
-                                            <td style="padding: 10px;">Jul 11 16:00</td>
-                                            <td style="padding: 10px;">12m 01s</td>
-                                            <td style="padding: 10px;">15.0m</td>
-                                            <td style="padding: 10px; color: var(--accent-green);">7</td>
-                                            <td style="padding: 10px;">100% &rarr; 41%</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 10px;">3</td>
-                                            <td style="padding: 10px;">Jul 10 10:15</td>
-                                            <td style="padding: 10px;">5m 45s</td>
-                                            <td style="padding: 10px;">10.0m</td>
-                                            <td style="padding: 10px; color: var(--text-muted);">0 (test)</td>
-                                            <td style="padding: 10px;">90% &rarr; 65%</td>
-                                        </tr>
+                                    <tbody id="flight-logs-tbody">
+                                        <!-- Flight logs populated by JS -->
                                     </tbody>
                                 </table>
                                 <div style="margin-top: 20px; display: flex; gap: 10px;">
@@ -452,6 +450,6 @@ FLIGHT_ALT    = 15.0
         // Inject geofence from backend
         window.GEOFENCE = {{ geofence | safe | default("[]") }};
     </script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=7"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=9"></script>
 </body>
 </html>

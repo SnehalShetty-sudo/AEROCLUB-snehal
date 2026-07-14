@@ -487,6 +487,6 @@ FLIGHT_ALT    = 15.0
         // Inject geofence from backend
         window.GEOFENCE = {{ geofence | safe | default("[]") }};
     </script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=11"></script>
+    <script src="{{ url_for('static', filename='js/app_v2.js') }}"></script>
 </body>
 </html>

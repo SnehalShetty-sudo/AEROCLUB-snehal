@@ -449,6 +449,40 @@ FLIGHT_ALT    = 15.0
         </div>
     </div>
 
+    <!-- Environment Selection Modal -->
+    <div id="env-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: var(--bg-darker); border: 1px solid var(--border-color); border-radius: 12px; width: 600px; max-width: 90vw; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+            <h2 style="margin-top: 0; font-weight: 500;"><i class="fa-solid fa-server" style="color: var(--accent-blue);"></i> Launch Environment</h2>
+            <p style="color: var(--text-muted); margin-bottom: 25px; font-size: 0.9rem; line-height: 1.5;">
+                Select the execution environment. The GCS will automatically spin up the necessary background processes and configure the MAVLink bridge.
+            </p>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <!-- SITL Option -->
+                <button class="btn btn-env-select" data-env="SITL" style="text-align: left; padding: 20px; background: rgba(61, 139, 253, 0.1); border: 1px solid rgba(61, 139, 253, 0.3); justify-content: flex-start; height: auto;">
+                    <div style="font-size: 1.2rem; margin-bottom: 5px; color: var(--accent-blue);"><i class="fa-solid fa-laptop-code"></i> SITL (Simulation)</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); white-space: normal;">Launch Gazebo simulator and ArduPilot SITL in the background. Perfect for software testing.</div>
+                </button>
+                
+                <!-- HITL Option -->
+                <button class="btn btn-env-select" data-env="HITL" style="text-align: left; padding: 20px; background: rgba(245, 166, 35, 0.1); border: 1px solid rgba(245, 166, 35, 0.3); justify-content: flex-start; height: auto;">
+                    <div style="font-size: 1.2rem; margin-bottom: 5px; color: var(--accent-orange);"><i class="fa-solid fa-microchip"></i> HITL (Hardware-In-The-Loop)</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); white-space: normal;">Launch Gazebo and connect to the physical Pixhawk via USB. Test hardware responses safely.</div>
+                </button>
+                
+                <!-- LIVE Option -->
+                <button class="btn btn-env-select" data-env="LIVE" style="text-align: left; padding: 20px; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.3); justify-content: flex-start; height: auto;">
+                    <div style="font-size: 1.2rem; margin-bottom: 5px; color: var(--accent-green);"><i class="fa-solid fa-plane-departure"></i> Live Flight</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); white-space: normal;">Connect directly to the physical drone and PiCamera. No simulators. Use for real missions.</div>
+                </button>
+            </div>
+            
+            <div style="text-align: right; margin-top: 25px;">
+                <button class="btn" id="btn-env-cancel" style="background: transparent; border: 1px solid var(--border-color);">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Inject geofence from backend
         window.GEOFENCE = {{ geofence | safe | default("[]") }};

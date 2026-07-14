@@ -535,7 +535,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 btn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     if (isActive) return;
-                    await loadApp(app.id);
+                    showEnvModal(app.id);
                 });
 
                 grid.appendChild(card);
@@ -544,6 +544,70 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error('Failed to load apps:', e);
         }
     }
+
+    // ═══════════════════════════════════════════════
+    //  Environment Selection Logic
+    // ═══════════════════════════════════════════════
+
+    let pendingAppIdToLoad = null;
+    const envModal = document.getElementById('env-modal');
+    
+    function showEnvModal(appId) {
+        pendingAppIdToLoad = appId;
+        if (envModal) {
+            envModal.style.display = 'flex';
+        }
+    }
+
+    function hideEnvModal() {
+        pendingAppIdToLoad = null;
+        if (envModal) {
+            envModal.style.display = 'none';
+        }
+    }
+
+    if (document.getElementById('btn-env-cancel')) {
+        document.getElementById('btn-env-cancel').addEventListener('click', hideEnvModal);
+    }
+
+    document.querySelectorAll('.btn-env-select').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const mode = btn.getAttribute('data-env');
+            const appId = pendingAppIdToLoad;
+            
+            // Change button state to loading
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = `<div style="font-size: 1.2rem; text-align: center;"><i class="fa-solid fa-spinner fa-spin"></i> Starting Environment...</div>`;
+            btn.style.pointerEvents = 'none';
+            
+            try {
+                addLog(`Provisioning Environment: ${mode}...`, 'warn');
+                const res = await fetch('/api/env/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mode: mode})
+                });
+                
+                const result = await res.json();
+                if (result.success) {
+                    addLog(`Environment ${mode} started successfully.`, 'success');
+                    hideEnvModal();
+                    if (appId) {
+                        await loadApp(appId);
+                    }
+                } else {
+                    addLog(`Failed to start environment: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                addLog(`Error starting environment`, 'error');
+            } finally {
+                // Restore button state
+                btn.innerHTML = originalHtml;
+                btn.style.pointerEvents = 'auto';
+            }
+        });
+    });
 
     async function loadApp(appId) {
         addLog(`Loading app: ${appId}...`, 'warn');

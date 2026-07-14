@@ -84,24 +84,101 @@ if SIMULATION_MODE:
         rclpy = MockRclpy()
 
 
+# Global references for dynamic hardware swapping
+global_mav_bridge = None
+global_cam = None
+global_ros_thread = None
+
+def start_hardware():
+    """Initializes MAVLink and Camera based on the environment variables set by EnvManager."""
+    global global_mav_bridge, global_cam, global_ros_thread
+    
+    # Check what mode we are in based on env vars set by EnvManager
+    is_mock = os.environ.get("DRONE_MOCK", "false").lower() == "true"
+    mav_conn = os.environ.get("MAV_CONNECTION", "tcp:127.0.0.1:5760")
+    
+    logger.info(f"Initializing Hardware. Mock: {is_mock}, MAVLink: {mav_conn}")
+    
+    # ── 1. MAVLink Bridge ──
+    # We must patch config.py dynamically for now or pass the conn string directly if supported.
+    # MavlinkBridge currently reads from config.py or sys args, we'll assume it handles it or we use Mock mode.
+    from telemetry.mavlink_bridge import MavlinkBridge
+    global_mav_bridge = MavlinkBridge()
+    # Force mock mode if requested
+    if is_mock:
+        from config import SIMULATION_MODE
+        # Workaround: we can't easily change config.py at runtime, but we can set a flag on the bridge
+        # Actually, MavlinkBridge reads FC_MOCK_MODE. We'll just rely on the env var DRONE_MOCK which config.py parses.
+        pass
+
+    if not global_mav_bridge.start():
+        logger.error("Failed to start MAVLink bridge.")
+        return False
+
+    # ── 2. Camera Setup ──
+    # Since ROS2 is broken on this PC, we'll force MockCamera if is_mock is true
+    if is_mock or SIMULATION_MODE:
+        logger.info("Initializing Mock/ROS2 Camera...")
+        global_cam = ROS2Camera(ROS2_IMAGE_TOPIC)
+        # If it's real ROS2, start the thread
+        if hasattr(global_cam, 'subscription'): 
+            rclpy.init()
+            global_ros_thread = threading.Thread(target=rclpy.spin, args=(global_cam,), daemon=True)
+            global_ros_thread.start()
+    else:
+        try:
+            from picamera2 import Picamera2
+            global_cam = Picamera2()
+            global_cam.configure(global_cam.create_preview_configuration(
+                main={"format": "BGR888", "size": (CAMERA_WIDTH, CAMERA_HEIGHT)},
+                controls={"FrameRate": CAMERA_FPS},
+            ))
+            global_cam.start()
+            time.sleep(1)
+        except ImportError:
+            logger.error("picamera2 not found. Run in Mock mode.")
+            global_mav_bridge.stop()
+            return False
+
+    logger.info("Hardware initialized successfully.")
+    return True
+
+def stop_hardware():
+    """Stops MAVLink and Camera."""
+    global global_mav_bridge, global_cam, global_ros_thread
+    
+    logger.info("Stopping Hardware...")
+    if global_mav_bridge:
+        global_mav_bridge.stop()
+        global_mav_bridge = None
+        
+    if global_cam:
+        if hasattr(global_cam, 'stop'):
+            global_cam.stop()
+        global_cam = None
+        
+    if global_ros_thread and rclpy:
+        try:
+            rclpy.shutdown()
+        except:
+            pass
+        global_ros_thread = None
+
+
 def main():
     logger.info("═══════════════════════════════════════════════")
-    logger.info("  GCS Orchestrator Starting...")
+    logger.info("  GCS Orchestrator Starting in STANDBY mode...")
     logger.info("═══════════════════════════════════════════════")
 
-    # ── 1. MAVLink Bridge ──
-    from telemetry.mavlink_bridge import MavlinkBridge
-    mav_bridge = MavlinkBridge()
-    if not mav_bridge.start():
-        logger.error("Failed to start MAVLink bridge.")
-        return
-
-    # ── 2. App Manager ──
+    # ── 1. App Manager ──
     from apps.app_manager import AppManager
     app_mgr = AppManager()
-    app_mgr.set_mav_bridge(mav_bridge)
+    
+    # ── 2. Environment Manager ──
+    from provisioning.env_manager import EnvironmentManager
+    env_mgr = EnvironmentManager()
 
-    # Load the default app (IdleApp — manual flight mode)
+    # Load the default app
     app_mgr.load_app("idle")
     logger.info("App Manager initialized. Default app: Manual Flight")
 
@@ -109,40 +186,28 @@ def main():
     from dashboard.server import (
         start_server_in_thread, update_video_frame,
         push_telemetry, push_app_stats, push_new_detection,
-        set_mav_bridge, set_app_manager, set_mission_command_callback, socketio
+        set_mav_bridge, set_app_manager, set_mission_command_callback,
+        set_env_manager, set_hardware_callbacks
     )
-    set_mav_bridge(mav_bridge)
+    
+    # Provide the server with a way to trigger hardware start/stop from the API
+    def on_hardware_start():
+        success = start_hardware()
+        if success:
+            app_mgr.set_mav_bridge(global_mav_bridge)
+            set_mav_bridge(global_mav_bridge)
+        return success
+
+    def on_hardware_stop():
+        stop_hardware()
+        app_mgr.set_mav_bridge(None)
+        set_mav_bridge(None)
+        
+    set_env_manager(env_mgr)
+    set_hardware_callbacks(on_hardware_start, on_hardware_stop)
     set_app_manager(app_mgr)
+    
     server_thread = start_server_in_thread()
-
-    # ── 4. Camera Setup ──
-    cam = None
-    ros_thread = None
-    if SIMULATION_MODE:
-        logger.info("Initializing ROS2 Camera Node...")
-        rclpy.init()
-        cam = ROS2Camera(ROS2_IMAGE_TOPIC)
-        ros_thread = threading.Thread(target=rclpy.spin, args=(cam,), daemon=True)
-        ros_thread.start()
-
-        logger.info("Waiting for first ROS2 image frame...")
-        while cam.get_frame() is None:
-            time.sleep(0.1)
-    else:
-        try:
-            from picamera2 import Picamera2
-            cam = Picamera2()
-            cam.configure(cam.create_preview_configuration(
-                main={"format": "BGR888", "size": (CAMERA_WIDTH, CAMERA_HEIGHT)},
-                controls={"FrameRate": CAMERA_FPS},
-            ))
-            cam.start()
-            time.sleep(1)
-        except ImportError:
-            logger.error("picamera2 not found. Run in SIMULATION_MODE.")
-            return
-
-    logger.info("Camera started.")
 
     # ── 5. Wire Dashboard Commands ──
     def handle_dashboard_command(cmd):
@@ -167,17 +232,28 @@ def main():
 
     try:
         while True:
+            # If hardware is not running, just sleep and yield
+            if not global_mav_bridge or not global_cam:
+                # Provide a blank standby frame to the stream
+                blank = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.putText(blank, "GCS STANDBY - Awaiting Environment", (80, 240), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (150, 150, 150), 2)
+                update_video_frame(blank)
+                time.sleep(0.5)
+                continue
+
             # Capture frame
-            if SIMULATION_MODE:
-                frame = cam.get_frame()
+            if SIMULATION_MODE or os.environ.get("DRONE_MOCK", "false").lower() == "true":
+                frame = global_cam.get_frame()
                 if frame is None:
+                    time.sleep(0.1)
                     continue
                 frame = frame.copy()
             else:
-                frame = cam.capture_array("main")
+                frame = global_cam.capture_array("main")
 
             # Get telemetry
-            tel = mav_bridge.get_telemetry()
+            tel = global_mav_bridge.get_telemetry()
 
             # ── Delegate to Active App ──
             annotated = app_mgr.process_frame(frame, tel)
@@ -235,11 +311,8 @@ def main():
         logger.info("Shutting down...")
     finally:
         app_mgr.stop()
-        if SIMULATION_MODE:
-            rclpy.shutdown()
-        else:
-            cam.stop()
-        mav_bridge.stop()
+        stop_hardware()
+        env_mgr.stop_all()
         logger.info("Shutdown complete.")
 
 

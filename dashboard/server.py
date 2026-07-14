@@ -32,7 +32,10 @@ _frame_ready_event = threading.Event()
 _mission_command_callback = None
 _mav_bridge = None
 _app_manager = None
+_env_manager = None
 _calibrator = None
+_on_hw_start = None
+_on_hw_stop = None
 
 
 def set_mav_bridge(bridge):
@@ -43,6 +46,15 @@ def set_mav_bridge(bridge):
 def set_app_manager(mgr):
     global _app_manager
     _app_manager = mgr
+
+def set_env_manager(mgr):
+    global _env_manager
+    _env_manager = mgr
+
+def set_hardware_callbacks(on_start, on_stop):
+    global _on_hw_start, _on_hw_stop
+    _on_hw_start = on_start
+    _on_hw_stop = on_stop
 
 
 def set_mission_command_callback(cb):
@@ -182,6 +194,39 @@ def api_app_stats():
     if _app_manager:
         return jsonify(_app_manager.get_stats())
     return jsonify({})
+
+
+# ═══════════════════════════════════════════════
+#  Environment Management API
+# ═══════════════════════════════════════════════
+
+@app.route('/api/env/start', methods=['POST'])
+def api_env_start():
+    data = request.get_json() or {}
+    mode = data.get('mode')
+    
+    if not _env_manager:
+        return jsonify({"success": False, "error": "EnvManager not initialized"})
+        
+    logger.info(f"API request to start environment: {mode}")
+    success = _env_manager.start_env(mode)
+    
+    if success and _on_hw_start:
+        # Start MAVLink & Camera
+        hw_success = _on_hw_start()
+        if not hw_success:
+            _env_manager.stop_all()
+            return jsonify({"success": False, "error": "Hardware failed to initialize"})
+            
+    return jsonify({"success": success})
+
+@app.route('/api/env/stop', methods=['POST'])
+def api_env_stop():
+    if _env_manager:
+        _env_manager.stop_all()
+    if _on_hw_stop:
+        _on_hw_stop()
+    return jsonify({"success": True})
 
 
 # ═══════════════════════════════════════════════

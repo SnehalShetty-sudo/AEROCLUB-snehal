@@ -17,9 +17,10 @@ def run_preflight_checks(mav_bridge):
     }
     """
     if not mav_bridge:
-        return get_verdict([])
+        tel = {}
+    else:
+        tel = mav_bridge.get_telemetry()
         
-    tel = mav_bridge.get_telemetry()
     results = []
     
     # 1. FC Heartbeat

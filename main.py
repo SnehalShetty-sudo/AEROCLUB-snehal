@@ -97,23 +97,22 @@ def start_hardware():
     # Check what mode we are in based on env vars set by EnvManager
     is_mock = os.environ.get("DRONE_MOCK", "false").lower() == "true"
     mav_conn = os.environ.get("MAV_CONNECTION", "tcp:127.0.0.1:5760")
+    mav_baud = int(os.environ.get("MAV_BAUD", "57600"))
     
-    logger.info(f"Initializing Hardware. Mock: {is_mock}, MAVLink: {mav_conn}")
+    logger.info(f"Initializing Hardware. Mock: {is_mock}, MAVLink: {mav_conn} @ {mav_baud}")
     
     # ── 1. MAVLink Bridge ──
-    # We must patch config.py dynamically for now or pass the conn string directly if supported.
-    # MavlinkBridge currently reads from config.py or sys args, we'll assume it handles it or we use Mock mode.
     from telemetry.mavlink_bridge import MavlinkBridge
-    global_mav_bridge = MavlinkBridge()
-    # Force mock mode if requested
-    if is_mock:
-        from config import SIMULATION_MODE
-        # Workaround: we can't easily change config.py at runtime, but we can set a flag on the bridge
-        # Actually, MavlinkBridge reads FC_MOCK_MODE. We'll just rely on the env var DRONE_MOCK which config.py parses.
-        pass
+    global_mav_bridge = MavlinkBridge(connection_string=mav_conn, baud=mav_baud)
 
-    if not global_mav_bridge.start():
-        logger.error("Failed to start MAVLink bridge.")
+    try:
+        if not global_mav_bridge.start():
+            logger.error("Failed to start MAVLink bridge.")
+            global_mav_bridge = None
+            return False
+    except Exception as e:
+        logger.error(f"MAVLink bridge connection exception: {e}")
+        global_mav_bridge = None
         return False
 
     # ── 2. Camera Setup ──

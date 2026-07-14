@@ -74,9 +74,10 @@ class EnvironmentManager:
 
                 elif mode == 'LIVE':
                     # No simulators to launch. Just configure for live hardware.
-                    logger.info("Configuring for Live Flight.")
+                    logger.info("Configuring for Live Flight (Pi 5 + 433MHz Telemetry).")
                     os.environ["DRONE_MOCK"] = "false"
-                    os.environ["MAV_CONNECTION"] = os.environ.get("MAV_LIVE_PORT", "COM3")
+                    os.environ["MAV_CONNECTION"] = os.environ.get("MAV_LIVE_PORT", "/dev/ttyUSB0")
+                    os.environ["MAV_BAUD"] = os.environ.get("MAV_LIVE_BAUD", "57600")
 
                 else:
                     logger.error(f"Unknown environment mode: {mode}")

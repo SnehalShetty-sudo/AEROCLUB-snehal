@@ -209,16 +209,22 @@ def api_env_start():
         return jsonify({"success": False, "error": "EnvManager not initialized"})
         
     logger.info(f"API request to start environment: {mode}")
-    success = _env_manager.start_env(mode)
-    
-    if success and _on_hw_start:
-        # Start MAVLink & Camera
-        hw_success = _on_hw_start()
-        if not hw_success:
+    try:
+        success = _env_manager.start_env(mode)
+        
+        if success and _on_hw_start:
+            # Start MAVLink & Camera
+            hw_success = _on_hw_start()
+            if not hw_success:
+                _env_manager.stop_all()
+                return jsonify({"success": False, "error": "Hardware failed to initialize (Ensure drone is connected or simulator is running)"})
+                
+        return jsonify({"success": success})
+    except Exception as e:
+        logger.error(f"Error in env start: {e}")
+        if _env_manager:
             _env_manager.stop_all()
-            return jsonify({"success": False, "error": "Hardware failed to initialize"})
-            
-    return jsonify({"success": success})
+        return jsonify({"success": False, "error": str(e)})
 
 @app.route('/api/env/stop', methods=['POST'])
 def api_env_stop():

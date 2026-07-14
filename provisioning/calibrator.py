@@ -20,6 +20,10 @@ class Calibrator:
 
     def start_compass_calibration(self, progress_callback):
         """Starts compass calibration and monitors progress."""
+        if not self.mav_bridge:
+            logger.error("No MAVLink bridge available for calibration.")
+            return False
+
         if getattr(self.mav_bridge, 'mock', False):
             logger.info("MOCK: Starting compass calibration.")
             for i in range(10, 101, 10):
@@ -27,7 +31,8 @@ class Calibrator:
                 progress_callback(i)
             return True
 
-        if not self.mav_bridge.master:
+        if getattr(self.mav_bridge, 'master', None) is None:
+            logger.error("No MAVLink master connection available.")
             return False
 
         logger.info("Starting compass calibration.")
@@ -75,6 +80,10 @@ class Calibrator:
 
     def start_accel_calibration(self, progress_callback, step_callback=None):
         """Starts accelerometer calibration."""
+        if not self.mav_bridge:
+            logger.error("No MAVLink bridge available for calibration.")
+            return False
+
         if getattr(self.mav_bridge, 'mock', False):
             logger.info("MOCK: Starting accel calibration.")
             steps = ["Level", "Left", "Right", "Nose Down", "Nose Up", "Back"]
@@ -86,7 +95,8 @@ class Calibrator:
             progress_callback(100)
             return True
             
-        if not self.mav_bridge.master:
+        if getattr(self.mav_bridge, 'master', None) is None:
+            logger.error("No MAVLink master connection available.")
             return False
             
         logger.info("Starting accel calibration.")
@@ -136,6 +146,10 @@ class Calibrator:
 
     def start_esc_calibration(self, step_callback):
         """Guides user through ESC calibration."""
+        if not self.mav_bridge:
+            logger.error("No MAVLink bridge available for calibration.")
+            return False
+            
         mock = getattr(self.mav_bridge, 'mock', False)
         
         def wait_user(step, text):
@@ -151,10 +165,11 @@ class Calibrator:
         wait_user(1, 'Remove all propellers for safety')
         wait_user(2, 'Disconnect the battery')
         
-        if not mock and self.mav_bridge.master:
-            self.mav_bridge.master.mav.command_long_send(
-                self.mav_bridge.master.target_system,
-                self.mav_bridge.master.target_component,
+        master = getattr(self.mav_bridge, 'master', None)
+        if not mock and master is not None:
+            master.mav.command_long_send(
+                master.target_system,
+                master.target_component,
                 mavutil.mavlink.MAV_CMD_PREFLIGHT_CALIBRATION,
                 0,
                 0, 0, 0, 0, 0, 0, 1  # param7=1 for ESC cal

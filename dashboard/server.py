@@ -200,17 +200,31 @@ def api_app_stats():
 #  Environment Management API
 # ═══════════════════════════════════════════════
 
+@app.route('/api/ports')
+def api_ports():
+    try:
+        import serial.tools.list_ports
+        ports = []
+        for p in serial.tools.list_ports.comports():
+            ports.append({"device": p.device, "description": p.description})
+        return jsonify({"ports": ports})
+    except Exception as e:
+        logger.error(f"Failed to list ports: {e}")
+        return jsonify({"ports": [], "error": str(e)})
+
 @app.route('/api/env/start', methods=['POST'])
 def api_env_start():
     data = request.get_json() or {}
     mode = data.get('mode')
+    port = data.get('port')
+    baud = data.get('baud')
     
     if not _env_manager:
         return jsonify({"success": False, "error": "EnvManager not initialized"})
         
-    logger.info(f"API request to start environment: {mode}")
+    logger.info(f"API request to start environment: {mode} (port={port}, baud={baud})")
     try:
-        success = _env_manager.start_env(mode)
+        success = _env_manager.start_env(mode, port=port, baud=baud)
         
         if success and _on_hw_start:
             # Start MAVLink & Camera

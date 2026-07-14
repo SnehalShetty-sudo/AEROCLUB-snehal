@@ -24,7 +24,7 @@ class EnvironmentManager:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(base_dir, "scripts")
 
-    def start_env(self, mode):
+    def start_env(self, mode, port=None, baud=None):
         """
         Launch the required background processes for the given mode.
         mode can be: 'SITL', 'HITL', 'LIVE'
@@ -76,8 +76,8 @@ class EnvironmentManager:
                     # No simulators to launch. Just configure for live hardware.
                     logger.info("Configuring for Live Flight (Pi 5 + 433MHz Telemetry).")
                     os.environ["DRONE_MOCK"] = "false"
-                    os.environ["MAV_CONNECTION"] = os.environ.get("MAV_LIVE_PORT", "/dev/ttyUSB0")
-                    os.environ["MAV_BAUD"] = os.environ.get("MAV_LIVE_BAUD", "57600")
+                    os.environ["MAV_CONNECTION"] = port or os.environ.get("MAV_LIVE_PORT", "/dev/ttyUSB0")
+                    os.environ["MAV_BAUD"] = str(baud) if baud else os.environ.get("MAV_LIVE_BAUD", "57600")
 
                 else:
                     logger.error(f"Unknown environment mode: {mode}")

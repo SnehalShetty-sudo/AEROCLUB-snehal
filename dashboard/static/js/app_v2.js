@@ -556,6 +556,11 @@ document.addEventListener("DOMContentLoaded", () => {
         pendingAppIdToLoad = appId;
         if (envModal) {
             envModal.style.display = 'flex';
+            const errMsg = document.getElementById('env-error-msg');
+            if (errMsg) {
+                errMsg.style.display = 'none';
+                errMsg.innerHTML = '';
+            }
         }
     }
 
@@ -575,18 +580,67 @@ document.addEventListener("DOMContentLoaded", () => {
             const mode = btn.getAttribute('data-env');
             const appId = pendingAppIdToLoad;
             
-            // Change button state to loading
-            const originalHtml = btn.innerHTML;
-            btn.innerHTML = `<div style="font-size: 1.2rem; text-align: center;"><i class="fa-solid fa-spinner fa-spin"></i> Starting Environment...</div>`;
-            btn.style.pointerEvents = 'none';
+            if (mode === 'LIVE') {
+                // Expand panel instead of starting immediately
+                const panel = document.getElementById('live-settings-panel');
+                if (panel.style.display === 'none') {
+                    panel.style.display = 'block';
+                    // Fetch ports
+                    const portSelect = document.getElementById('live-port-select');
+                    try {
+                        const res = await fetch('/api/ports');
+                        const data = await res.json();
+                        portSelect.innerHTML = '';
+                        if (data.ports && data.ports.length > 0) {
+                            data.ports.forEach(p => {
+                                const opt = document.createElement('option');
+                                opt.value = p.device;
+                                opt.textContent = `${p.device} - ${p.description}`;
+                                portSelect.appendChild(opt);
+                            });
+                        } else {
+                            portSelect.innerHTML = '<option value="">No ports found</option>';
+                        }
+                    } catch (err) {
+                        portSelect.innerHTML = '<option value="">Error loading ports</option>';
+                    }
+                } else {
+                    panel.style.display = 'none';
+                }
+                return; // Stop here, wait for connect button
+            }
             
-            try {
-                addLog(`Provisioning Environment: ${mode}...`, 'warn');
-                const res = await fetch('/api/env/start', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({mode: mode})
-                });
+            // For SITL/HITL, start immediately
+            await startEnvironment(mode, appId, btn);
+        });
+    });
+
+    const liveConnectBtn = document.getElementById('btn-live-connect');
+    if (liveConnectBtn) {
+        liveConnectBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const port = document.getElementById('live-port-select').value;
+            const baud = document.getElementById('live-baud-select').value;
+            if (!port) {
+                alert("Please select a serial port or ensure the hardware is connected.");
+                return;
+            }
+            await startEnvironment('LIVE', pendingAppIdToLoad, liveConnectBtn, port, baud);
+        });
+    }
+
+    async function startEnvironment(mode, appId, btn, port=null, baud=null) {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = `<div style="font-size: 1.2rem; text-align: center;"><i class="fa-solid fa-spinner fa-spin"></i> Starting...</div>`;
+        btn.style.pointerEvents = 'none';
+        
+        try {
+            addLog(`Provisioning Environment: ${mode}...`, 'warn');
+            const res = await fetch('/api/env/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mode: mode, port: port, baud: baud})
+            });
                 
                 const result = await res.json();
                 if (result.success) {
@@ -597,17 +651,26 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 } else {
                     addLog(`Failed to start environment: ${result.error}`, 'error');
+                    const errMsg = document.getElementById('env-error-msg');
+                    if (errMsg) {
+                        errMsg.style.display = 'block';
+                        errMsg.innerHTML = `<strong>Error:</strong> ${result.error}`;
+                    }
                 }
             } catch (err) {
                 console.error(err);
                 addLog(`Error starting environment`, 'error');
+                const errMsg = document.getElementById('env-error-msg');
+                if (errMsg) {
+                    errMsg.style.display = 'block';
+                    errMsg.innerHTML = `<strong>Error:</strong> Failed to connect to server API.`;
+                }
             } finally {
                 // Restore button state
                 btn.innerHTML = originalHtml;
                 btn.style.pointerEvents = 'auto';
             }
-        });
-    });
+    }
 
     async function loadApp(appId) {
         addLog(`Loading app: ${appId}...`, 'warn');

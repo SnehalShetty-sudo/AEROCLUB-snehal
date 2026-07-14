@@ -18,6 +18,7 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
 CAMERA_FPS = 30
+MJPEG_STREAM_URL = os.environ.get("MJPEG_STREAM_URL", "http://10.236.25.244:8080/?action=stream")
 INFERENCE_WIDTH = 640      # YOLOv8 expects 640x640
 INFERENCE_HEIGHT = 640
 

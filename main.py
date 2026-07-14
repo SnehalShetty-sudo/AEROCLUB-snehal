@@ -76,6 +76,25 @@ if SIMULATION_MODE:
                 return self.frame
 
         ROS2Camera = lambda topic: MockCamera()
+        
+        class MJPEGCamera:
+            def __init__(self, stream_url):
+                self.stream_url = stream_url
+                self.cap = cv2.VideoCapture(stream_url)
+                self.latest_frame = np.zeros((CAMERA_HEIGHT, CAMERA_WIDTH, 3), dtype=np.uint8)
+                self.thread = threading.Thread(target=self._update, daemon=True)
+                self.thread.start()
+
+            def _update(self):
+                while True:
+                    ret, frame = self.cap.read()
+                    if ret:
+                        self.latest_frame = frame
+                    else:
+                        time.sleep(0.1)
+
+            def get_frame(self):
+                return self.latest_frame
 
         class MockRclpy:
             def init(self): pass
@@ -117,7 +136,7 @@ def start_hardware():
 
     # ── 2. Camera Setup ──
     # Since ROS2 is broken on this PC, we'll force MockCamera if is_mock is true
-    if is_mock or SIMULATION_MODE:
+    if is_mock or ("tcp" in mav_conn or "udp" in mav_conn):
         logger.info("Initializing Mock/ROS2 Camera...")
         global_cam = ROS2Camera(ROS2_IMAGE_TOPIC)
         # If it's real ROS2, start the thread
@@ -136,9 +155,16 @@ def start_hardware():
             global_cam.start()
             time.sleep(1)
         except ImportError:
-            logger.error("picamera2 not found. Run in Mock mode.")
-            global_mav_bridge.stop()
-            return False
+            from config import MJPEG_STREAM_URL
+            logger.warning(f"picamera2 not found. Falling back to Wi-Fi MJPEG stream at {MJPEG_STREAM_URL}")
+            try:
+                global_cam = MJPEGCamera(MJPEG_STREAM_URL)
+                time.sleep(1) # wait for first frame
+            except Exception as e:
+                logger.error(f"Failed to start MJPEGCamera: {e}")
+                global_mav_bridge.stop()
+                global_mav_bridge = None
+                return False
 
     logger.info("Hardware initialized successfully.")
     return True

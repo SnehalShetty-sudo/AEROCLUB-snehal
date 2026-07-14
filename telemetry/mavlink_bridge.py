@@ -226,12 +226,15 @@ class MavlinkBridge:
         logger.info(f"Heartbeat received from drone: system {self.master.target_system} component {self.master.target_component}")
         
         # Disable arming checks in SITL to avoid annoying 'Gyros inconsistent' pre-arm failures
-        if SIMULATION_MODE:
+        if "tcp" in self.connection_string or "udp" in self.connection_string:
             logger.info("Disabling arming checks for simulation...")
-            self.master.param_set_send(
-                self.master.target_system, self.master.target_component,
-                b'ARMING_CHECK', 0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32
-            )
+            try:
+                self.master.mav.param_set_send(
+                    self.master.target_system, self.master.target_component,
+                    b'ARMING_CHECK', 0, mavutil.mavlink.MAV_PARAM_TYPE_REAL32
+                )
+            except Exception as e:
+                logger.error(f"Failed to disable arming checks: {e}")
         
         with self._telemetry_lock:
             self._state["connected"] = True

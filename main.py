@@ -13,6 +13,7 @@ dashboard.
 """
 
 import time
+import os
 import logging
 import threading
 import cv2

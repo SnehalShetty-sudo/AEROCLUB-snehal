@@ -2,16 +2,10 @@
 document.addEventListener("DOMContentLoaded", () => {
     const socket = io();
 
-    // DOM Elements
+    // DOM Elements — GCS-level (always present)
     const connStatus = document.getElementById('conn-status');
     const armStatus = document.getElementById('arm-status');
     const modeStatus = document.getElementById('mode-status');
-    
-    const countPerson = document.getElementById('count-person');
-    const countTriangle = document.getElementById('count-triangle');
-    const countSquare = document.getElementById('count-square');
-    const countRectangle = document.getElementById('count-rectangle');
-    const countTotal = document.getElementById('count-total');
 
     const telAlt = document.getElementById('tel-alt');
     const telSpeed = document.getElementById('tel-speed');
@@ -43,7 +37,10 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on('connect', () => {
         connStatus.textContent = 'CONNECTED';
         connStatus.className = 'status badge-success';
-        addLog('WebSocket connected to backend');
+        addLog('WebSocket connected to GCS backend');
+        // Load apps and active app info on connect
+        loadApps();
+        loadActiveApp();
     });
 
     socket.on('disconnect', () => {
@@ -183,68 +180,30 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.restore();
     }
 
-    // Detection updates
-    let lastCounts = {};
-    socket.on('detection_update', (data) => {
-        // data.counts is a dict e.g. {"person": 5, "triangle": 1}
-        const counts = data.counts || {};
-        // Use max to ensure counts only go UP (permanent running total for the judges)
-        if (counts['person'] !== undefined) {
-            countPerson.textContent = Math.max(parseInt(countPerson.textContent) || 0, counts['person']);
-        }
-        if (counts['triangle'] !== undefined) {
-            countTriangle.textContent = Math.max(parseInt(countTriangle.textContent) || 0, counts['triangle']);
-        }
-        if (counts['square'] !== undefined) {
-            countSquare.textContent = Math.max(parseInt(countSquare.textContent) || 0, counts['square']);
-        }
-        if (counts['rectangle'] !== undefined) {
-            countRectangle.textContent = Math.max(parseInt(countRectangle.textContent) || 0, counts['rectangle']);
-        }
-        
-        let total = parseInt(countPerson.textContent) + 
-                    parseInt(countTriangle.textContent) + 
-                    parseInt(countSquare.textContent) + 
-                    parseInt(countRectangle.textContent);
-        countTotal.textContent = total;
-
-        // Log newly found items
-        for (const [cls, count] of Object.entries(counts)) {
-            const last = lastCounts[cls] || 0;
-            if (count > last) {
-                // simple diff logging
-                addLog(`Detected new ${cls} (Total: ${count})`, 'detect');
+    // ═══════════════════════════════════════════════
+    //  Dynamic App Stats (replaces hardcoded detection_update)
+    // ═══════════════════════════════════════════════
+    socket.on('app_stats', (data) => {
+        // Dynamically update any stat elements the current app has rendered
+        for (const [key, value] of Object.entries(data)) {
+            const el = document.getElementById(`app-stat-${key}`);
+            if (el) {
+                el.textContent = value;
             }
         }
-        lastCounts = {...counts};
+        // Update total if it exists
+        if (data.total !== undefined) {
+            const totalEl = document.getElementById('app-stat-total');
+            if (totalEl) totalEl.textContent = data.total;
+        }
     });
 
-    // Detailed Geotagged Detections
-    const detectionLogBody = document.getElementById('detection-log-body');
+    // New detections (app-agnostic event log)
     socket.on('new_detection', (data) => {
-        // Create a new row for the detection log table
-        const row = document.createElement('tr');
-        row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-        
-        const timeCell = document.createElement('td');
-        timeCell.style.padding = '6px';
-        timeCell.textContent = data.time;
-        
-        const cellIdCell = document.createElement('td');
-        cellIdCell.style.padding = '6px';
-        cellIdCell.innerHTML = `<span class="badge-success" style="padding: 2px 6px; border-radius: 4px;">${data.cell_id}</span>`;
-        
-        const coordsCell = document.createElement('td');
-        coordsCell.style.padding = '6px';
-        coordsCell.style.fontFamily = 'monospace';
-        coordsCell.textContent = `${data.lat}, ${data.lon}`;
-        
-        row.appendChild(timeCell);
-        row.appendChild(cellIdCell);
-        row.appendChild(coordsCell);
-        
-        // Add to the top of the table
-        detectionLogBody.insertBefore(row, detectionLogBody.firstChild);
+        const cls = data.class_name || 'object';
+        const lat = data.lat ? data.lat.toFixed(6) : '--';
+        const lon = data.lon ? data.lon.toFixed(6) : '--';
+        addLog(`New ${cls} detected at (${lat}, ${lon})`, 'detect');
     });
 
     // Buttons
@@ -520,24 +479,167 @@ document.addEventListener("DOMContentLoaded", () => {
     
     layoutBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            // Remove active from all
             layoutBtns.forEach(b => b.classList.remove('active'));
-            // Add active to clicked
             btn.classList.add('active');
-            
-            // Remove old layout classes
             layoutContainer.classList.remove('layout-video-main', 'layout-split', 'layout-map-main', 'layout-video-only');
-            
-            // Add new layout class
             const layoutClass = btn.getAttribute('data-layout');
             layoutContainer.classList.add(layoutClass);
-
-            // Invalidate Map Size so it redraws properly after flexbox transition
             if (window.droneMap) {
-                setTimeout(() => {
-                    window.droneMap.invalidateSize();
-                }, 400); // Matches CSS transition time
+                setTimeout(() => { window.droneMap.invalidateSize(); }, 400);
             }
         });
     });
+
+    // ═══════════════════════════════════════════════
+    //  App Management System
+    // ═══════════════════════════════════════════════
+
+    async function loadApps() {
+        try {
+            const res = await fetch('/api/apps');
+            const data = await res.json();
+            const grid = document.getElementById('apps-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+
+            (data.apps || []).forEach(app => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.style.cursor = 'pointer';
+                card.style.transition = 'all 0.2s ease';
+                
+                const isActive = app.active;
+                if (isActive) {
+                    card.style.borderColor = 'var(--accent-blue)';
+                    card.style.boxShadow = '0 0 20px rgba(61, 139, 253, 0.15)';
+                }
+
+                card.innerHTML = `
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="${app.icon}"></i> ${app.name}</span>
+                        ${isActive ? '<span class="badge-success" style="padding: 2px 8px; font-size: 0.65rem;">ACTIVE</span>' : ''}
+                    </div>
+                    <div style="padding: 14px;">
+                        <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px;">${app.description}</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.7rem; color: var(--text-faint);">v${app.version}</span>
+                            <button class="btn ${isActive ? 'btn-info' : 'btn-success'}" style="padding: 6px 16px; font-size: 0.78rem;" data-app-id="${app.id}">
+                                ${isActive ? '<i class="fa-solid fa-check"></i> Active' : '<i class="fa-solid fa-play"></i> Load'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                // Wire up the load button
+                const btn = card.querySelector('button');
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (isActive) return;
+                    await loadApp(app.id);
+                });
+
+                grid.appendChild(card);
+            });
+        } catch (e) {
+            console.error('Failed to load apps:', e);
+        }
+    }
+
+    async function loadApp(appId) {
+        addLog(`Loading app: ${appId}...`, 'warn');
+        try {
+            const res = await fetch('/api/apps/load', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: appId})
+            });
+            const result = await res.json();
+            if (result.success) {
+                addLog(`App "${result.app.name}" loaded successfully.`, 'detect');
+                renderAppWidgets(result.app.widgets);
+                loadApps(); // Refresh the app list to update active states
+            } else {
+                addLog('Failed to load app.', 'error');
+            }
+        } catch (e) {
+            addLog('Error loading app.', 'error');
+            console.error(e);
+        }
+    }
+
+    async function loadActiveApp() {
+        try {
+            const res = await fetch('/api/apps/active');
+            const data = await res.json();
+            if (data && data.widgets) {
+                renderAppWidgets(data.widgets);
+                addLog(`Active app: ${data.name}`);
+            }
+        } catch (e) {
+            console.error('Failed to load active app:', e);
+        }
+    }
+
+    function renderAppWidgets(widgets) {
+        const container = document.getElementById('app-widgets');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (!widgets || widgets.length === 0) {
+            container.innerHTML = `
+                <div class="card">
+                    <div class="card-header">App Status</div>
+                    <div style="padding: 20px; text-align: center; color: var(--text-faint);">
+                        <i class="fa-solid fa-cubes" style="font-size: 2rem; margin-bottom: 10px; display: block; opacity: 0.4;"></i>
+                        <p>No widgets available.</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        widgets.forEach(widget => {
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            if (widget.type === 'stat_grid') {
+                // Generate stat grid dynamically
+                let statsHtml = '';
+                widget.stats.forEach(stat => {
+                    const iconStyle = stat.icon_style ? `style="${stat.icon_style}"` : '';
+                    statsHtml += `
+                        <div class="stat-box">
+                            <div class="stat-icon" style="color: ${stat.color};">
+                                <i class="${stat.icon}" ${iconStyle}></i>
+                            </div>
+                            <div class="stat-val" id="app-stat-${stat.id}" style="color: ${stat.color}; text-shadow: 0 0 20px ${stat.color}40;">0</div>
+                            <div class="stat-label">${stat.label}</div>
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="card-header">${widget.title}</div>
+                    <div class="stats-grid">${statsHtml}</div>
+                    <div class="total-objects">Total: <span id="app-stat-total" style="font-weight: 700; color: var(--text-main);">0</span></div>
+                `;
+            } else if (widget.type === 'info_card') {
+                card.innerHTML = `
+                    <div class="card-header">${widget.title}</div>
+                    <div style="padding: 16px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.6;">
+                        <i class="fa-solid fa-info-circle" style="color: var(--accent-blue); margin-right: 6px;"></i>
+                        ${widget.content}
+                    </div>
+                `;
+            } else if (widget.type === 'log') {
+                card.innerHTML = `
+                    <div class="card-header">${widget.title}</div>
+                    <div class="event-log" id="${widget.id}" style="max-height: 200px;"></div>
+                `;
+            }
+
+            container.appendChild(card);
+        });
+    }
+
 });

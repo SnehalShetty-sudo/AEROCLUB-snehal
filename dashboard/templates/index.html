@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drone GCS — Aerial Detection System</title>
+    <title>Drone GCS — Ground Control Station</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -25,8 +25,12 @@
                 <span class="label">Overview</span>
             </div>
             <div class="sidebar-item active" data-tab="mission" title="Mission Control">
-                <span class="icon"><i class="fa-solid fa-rocket"></i></span>
+                <span class="icon"><i class="fa-solid fa-satellite-dish"></i></span>
                 <span class="label">Mission</span>
+            </div>
+            <div class="sidebar-item" data-tab="apps" title="Mission Apps">
+                <span class="icon"><i class="fa-solid fa-cubes"></i></span>
+                <span class="label">Apps</span>
             </div>
             <div class="sidebar-item" data-tab="calibration" title="Calibration">
                 <span class="icon"><i class="fa-solid fa-wrench"></i></span>
@@ -48,7 +52,7 @@
 
         <div class="main-content">
             <div class="top-bar">
-                <div class="title"><i class="fa-solid fa-helicopter"></i> Aerial Detection System <span id="phase-indicator" class="status badge-info" style="margin-left: 10px;">IN-FLIGHT</span></div>
+                <div class="title"><i class="fa-solid fa-helicopter"></i> Ground Control Station <span id="phase-indicator" class="status badge-info" style="margin-left: 10px;">STANDBY</span></div>
                 <div class="status-indicators">
                     <span id="conn-status" class="status badge-warning">Connecting...</span>
                     <span id="arm-status" class="status badge-danger">Disarmed</span>
@@ -148,40 +152,22 @@
                             <div id="map" style="flex: 1; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; z-index: 1;"></div>
                         </div>
 
-                        <!-- Right Panel: Stats & Telemetry -->
+                        <!-- Right Panel: Dynamic App Widgets + Telemetry -->
                         <div class="side-panel">
                             
-                            <!-- Detection Summary -->
-                            <div class="card">
-                                <div class="card-header">Detection Summary</div>
-                                <div class="stats-grid">
-                                    <div class="stat-box person">
-                                        <div class="stat-icon"><i class="fa-solid fa-person"></i></div>
-                                        <div class="stat-val" id="count-person">0</div>
-                                        <div class="stat-label">Persons</div>
+                            <!-- Dynamic App Widgets (populated by JS based on active app) -->
+                            <div id="app-widgets">
+                                <div class="card">
+                                    <div class="card-header">App Status</div>
+                                    <div style="padding: 20px; text-align: center; color: var(--text-faint);">
+                                        <i class="fa-solid fa-cubes" style="font-size: 2rem; margin-bottom: 10px; display: block; opacity: 0.4;"></i>
+                                        <p>No mission app loaded.</p>
+                                        <p style="font-size: 0.8rem; margin-top: 5px;">Go to the <strong>Apps</strong> tab to select a mission.</p>
                                     </div>
-                                    <div class="stat-box shape-tri">
-                                        <div class="stat-icon"><i class="fa-solid fa-play" style="transform: rotate(-90deg);"></i></div>
-                                        <div class="stat-val" id="count-triangle">0</div>
-                                        <div class="stat-label">Triangles</div>
-                                    </div>
-                                    <div class="stat-box shape-sq">
-                                        <div class="stat-icon"><i class="fa-solid fa-square"></i></div>
-                                        <div class="stat-val" id="count-square">0</div>
-                                        <div class="stat-label">Squares</div>
-                                    </div>
-                                    <div class="stat-box shape-rect">
-                                        <div class="stat-icon"><i class="fa-solid fa-square" style="color: #b057da;"></i></div>
-                                        <div class="stat-val" id="count-rectangle">0</div>
-                                        <div class="stat-label">Rectangles</div>
-                                    </div>
-                                </div>
-                                <div class="total-objects">
-                                    Total Detected: <span id="count-total">0</span>
                                 </div>
                             </div>
 
-                            <!-- Telemetry -->
+                            <!-- Telemetry (always present — GCS-level) -->
                             <div class="card">
                                 <div class="card-header">Telemetry</div>
                                 <div class="telemetry-list">
@@ -208,7 +194,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Map / Radar Widget -->
+                            <!-- Radar (always present — GCS-level) -->
                             <div class="card">
                                 <div class="card-header">Live Location Radar</div>
                                 <div style="padding: 10px; display: flex; justify-content: center;">
@@ -216,23 +202,40 @@
                                 </div>
                             </div>
 
-                            <!-- Live Detection Log -->
+                            <!-- Event Log (always present — GCS-level) -->
                             <div class="card event-log-card">
-                                <div class="card-header">Live Detection Log</div>
-                                <div class="event-log" id="event-log" style="padding: 0;">
-                                    <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 0.85rem;">
-                                        <thead style="background: rgba(0,0,0,0.5); position: sticky; top: 0;">
-                                            <tr>
-                                                <th style="padding: 6px;">Time</th>
-                                                <th style="padding: 6px;">Cell</th>
-                                                <th style="padding: 6px;">Coordinates</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="detection-log-body">
-                                            <!-- Detections go here -->
-                                        </tbody>
-                                    </table>
+                                <div class="card-header">Event Log</div>
+                                <div class="event-log" id="event-log">
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: MISSION APPS -->
+                <div id="tab-apps" class="tab-content">
+                    <div class="dashboard-container" style="flex-direction: column;">
+                        <div class="card" style="width: 100%;">
+                            <div class="card-header"><i class="fa-solid fa-cubes"></i> Mission Apps</div>
+                            <div style="padding: 20px;">
+                                <p style="color: var(--text-muted); margin-bottom: 20px;">
+                                    Select a mission app to load. The active app controls what processing runs on the camera feed and what widgets appear on the Mission Control screen.
+                                </p>
+                                <div id="apps-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                                    <!-- App cards populated by JS -->
+                                    <div style="text-align: center; padding: 40px; color: var(--text-faint);">
+                                        <i class="fa-solid fa-spinner fa-spin" style="font-size: 1.5rem;"></i>
+                                        <p style="margin-top: 10px;">Loading apps...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Active App Configuration -->
+                        <div class="card" style="width: 100%; margin-top: 16px;" id="app-config-card">
+                            <div class="card-header"><i class="fa-solid fa-sliders"></i> Active App Configuration</div>
+                            <div id="app-config-content" style="padding: 20px;">
+                                <p style="color: var(--text-faint);">No app loaded. Select an app above.</p>
                             </div>
                         </div>
                     </div>

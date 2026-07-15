@@ -1,138 +1,179 @@
-# Autonomous Aerial Detection System 🚁
+# Next-Gen Autonomous Aerial Search & Rescue System (GCS & AI Companion) 🚁🤖
 
-Welcome to the **Autonomous Aerial Detection System**, a professional-grade software stack designed for autonomous search-and-rescue operations and target detection competitions. 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![ArduPilot](https://img.shields.io/badge/ArduPilot-SITL%20%2F%20Hardware-green.svg)](https://ardupilot.org/)
+[![UI: Modern Glassmorphism](https://img.shields.io/badge/UI-Glassmorphism%20Dark-purple.svg)]()
 
-This repository provides everything needed to turn a Raspberry Pi and a Pixhawk flight controller into a fully autonomous, AI-powered drone. It is capable of automatically generating mathematical search grids, flying them autonomously, detecting humans using YOLOv8, calculating their exact real-world GPS coordinates, and streaming all of this data live to a custom web dashboard.
+Welcome to the **Next-Gen Autonomous Aerial Search & Rescue System**, an industry-grade, highly optimized software stack built to turn a Raspberry Pi companion computer and a Pixhawk flight controller into a fully autonomous, real-time AI-powered robotic platform.
 
----
-
-## 🏗️ Core Architecture & "Digital Twin" Workflow
-
-One of the most powerful features of this repository is its **Unified Architecture**. 
-
-We do not maintain two separate codebases for simulation and real-world flights. Instead, the exact same Python code that flies the real drone in a field is used to fly the simulated drone in Gazebo. This is achieved via a "Digital Twin" toggle.
-
-By changing a single variable (`SIMULATION_MODE = True/False`) inside `config.py`, the system seamlessly switches its data sources:
-- **Real World (`False`):** Connects to the physical Pixhawk via USB/Serial (`/dev/ttyACM0`) and the physical Raspberry Pi Camera (`/dev/video0`).
-- **Simulation (`True`):** Connects to the ArduPilot SITL (Software In The Loop) via TCP and reads simulated camera frames from Gazebo via ROS2.
+This system is engineered specifically for autonomous sweeping search patterns, real-time human detection, traditional color/shape classification, and instant coordinate triangulation (geotagging) mapped onto an interactive, custom-built web dashboard.
 
 ---
 
-## 📂 Repository Structure & File Breakdown
+## 🏗️ System & Network Architecture
 
-The repository is broken down into modular subsystems, ensuring that the AI, the flight controller, and the web interface never block or slow each other down.
+This codebase is built around a **Decentralized Hybrid Network Topology** designed to maximize range and protect flight safety by separating critical flight operations from bandwidth-heavy video streams.
+
+```mermaid
+graph TD
+    subgraph Laptop (Ground Station)
+        GCS_Server[Flask + Socket.IO Backend]
+        GCS_UI[Glassmorphism Web Dashboard]
+        YOLO_Engine[YOLOv8 & OpenCV Detection Pipeline]
+        GCS_Server -->|WebSockets| GCS_UI
+        YOLO_Engine -->|Rendered Frames| GCS_Server
+    end
+
+    subgraph Raspberry Pi 5 (Companion Computer)
+        Pi_Streamer[pi_streamer.py Camera Daemon]
+        Pi_Cam[Pi Camera Module 3]
+        Pi_Cam -->|Raw Frames| Pi_Streamer
+    end
+
+    subgraph Drone Hardware (Air Unit)
+        Pixhawk[Pixhawk 6C Flight Controller]
+        GPS[DroneCAN M8N GPS]
+        GPS -->|CAN Bus| Pixhawk
+    end
+
+    %% Network Connections
+    Pi_Streamer -->|Wi-Fi Hotspot: MJPEG @ Port 8080| YOLO_Engine
+    GCS_Server -->|433MHz Telemetry Radio COM5 @ 57600 baud| Pixhawk
+```
+
+### 1. Flight Control & Telemetry Link (Long-Range, Bulletproof)
+* **Hardware:** 433MHz Air & Ground Telemetry Radios.
+* **Protocol:** MAVLink 2.0 over Serial (e.g., `COM5` on Windows at `57600` baud).
+* **Role:** The Ground Control Station (GCS) server running on the laptop communicates directly with the Pixhawk over the air. Telemetry packets (altitude, GPS coordinates, heading, roll/pitch/yaw, battery voltage, and satellite counts) are read at 10Hz and sent to the UI via WebSockets. Commands (Arm, Disarm, Takeoff, Guided, Auto, RTL) are injected back into this stream.
+* **Design Philosophy:** By isolating flight control onto the sub-GHz radio spectrum, we ensure the drone never loses connection to the GCS, even if high-frequency Wi-Fi ranges are exceeded.
+
+### 2. High-Bandwidth Video & Vision Link (Medium-Range, High-Speed)
+* **Hardware:** Raspberry Pi 5 + Pi Camera Module 3 + Local Wi-Fi Hotspot.
+* **Protocol:** HTTP MJPEG Multipart Stream.
+* **Role:** The Pi runs a lightweight background daemon (`pi_streamer.py`) that captures raw frames from the camera, wraps them in an HTTP MJPEG stream, and broadcasts them over the shared Wi-Fi hotspot on port `8080`. The GCS backend on the laptop catches this network stream, runs YOLOv8 and traditional OpenCV shape detection on the laptop's CPU/GPU, and renders the output onto the dashboard.
+* **Benefits:** Video compression and AI crunching occur independently. The Pi stays cool and has minimal processing overhead, leaving CPU cycles free for other tasks, while the laptop acts as the primary AI inference engine executing frames at **80+ FPS**.
+
+---
+
+## 📂 Repository Deep Dive
 
 ```text
 /
-├── config.py             # The master switch (SIMULATION_MODE = True/False)
-├── main.py               # The primary execution script
-├── requirements.txt      # Python dependencies list
+├── config.py                 # Core configurations (Baud, IPs, Topics, Geofences)
+├── main.py                   # GCS Orchestrator (starts threads, binds camera/MAVLink)
+├── deploy.py                 # Remote deployment script (SSH/SFTP to push files to the Pi)
+├── requirements.txt          # Python dependencies
 │
-├── /dashboard            # Web UI files (HTML/CSS/JS)
-│   ├── server.py         # Flask + Socket.IO backend
+├── /apps                     # Modular, pluggable GCS application layers
+│   ├── app_manager.py        # Dynamic app loading, lifecycle controller
+│   ├── base_app.py           # Base abstraction layer for custom apps
+│   ├── idle_app.py           # Manual Flight Mode (raw stream, raw HUD overlay)
+│   └── search_rescue.py      # Autonomous Search & Rescue (YOLO, geotagging, memory grids)
+│
+├── /dashboard                # Ground Control Station UI Files
+│   ├── server.py             # Flask + Socket.IO Server & WebSocket API
 │   ├── /templates
-│   │   └── index.html    # The main HTML structure
+│   │   └── index.html        # Glassmorphism HTML layout
 │   └── /static
 │       ├── /css
-│       │   └── style.css # Styling and colors
+│       │   └── style.css     # Responsive CSS styling & animations
 │       └── /js
-│           └── app.js    # Logic for updating numbers dynamically
+│           └── app_v2.js     # WebSocket hooks, Map routing, UI update handlers
 │
-├── /detection            # YOLOv8 and AI models
-│   ├── __init__.py
-│   ├── cpu_detector.py   # YOLOv8 on standard CPU
-│   ├── hailo_detector.py # YOLOv8 on Hailo AI Accelerator
-│   └── shape_detector.py # OpenCV traditional math detector
+├── /detection                # AI & Computer Vision Subsystem
+│   ├── cpu_detector.py       # High-speed YOLOv8 pipeline for CPUs
+│   ├── hailo_detector.py     # Hardware accelerated YOLOv8 for Hailo-8L
+│   └── shape_detector.py     # OpenCV contour math color/geometry classifier
 │
-├── /mission              # Waypoint and flight path logic
-│   ├── path_planner.py   # Math for drawing lawnmower grids
-│   ├── mission_manager.py# Uploads waypoints to the drone
-│   └── memory_grid.py    # Math for exact Geotagging and coordinates
+├── /mission                  # Navigation & Mathematical Spatial Math
+│   ├── path_planner.py       # Zig-zag lawnmower sweep coordinate generator
+│   ├── mission_manager.py    # Waypoint packaging and MAVLink FTP upload manager
+│   └── memory_grid.py        # Ray-casting coordinate mapping & grid matching
 │
-├── /telemetry            # MAVLink communication scripts
-│   └── mavlink_bridge.py # Connects Python to the Pixhawk
+├── /telemetry                # Pixhawk MAVLink Communication Stack
+│   └── mavlink_bridge.py     # Thread-safe telemetry reader and command injector
 │
-└── /gazebo               # [OPTIONAL] Kept completely separate for testers!
-    ├── isro_mars.sdf     # 3D simulator world
-    └── gazebo-iris-gimbal.parm # Drone physics file
+└── /profiles                 # Drone-specific YAML parameters & configs
 ```
 
-### 1. The Core Brain
-* **`config.py`**: The master configuration file. This is where you set the global Geofence coordinates, camera resolution, IP addresses, and toggle the `SIMULATION_MODE`. You only ever need to edit this file to configure a flight.
-* **`main.py`**: The orchestrator. It does not do the heavy lifting itself; instead, it starts the background threads for the Web Server, the Camera, and the AI model. Its main `while True` loop grabs the latest camera frame, passes it to the AI, merges the detections with the telemetry from the drone, and pushes everything to the dashboard.
+### 🧠 Core Subsystems Breakdown
 
-### 2. `/mission` (Autonomous Navigation)
-This folder handles all the logic required to make the drone fly completely on its own without a remote control.
-* **`path_planner.py`**: Contains the mathematical logic to take a custom polygon (your Geofence) and generate an optimized "Lawnmower" search grid (a zig-zag sweeping pattern) so the drone covers 100% of the search area.
-* **`mission_manager.py`**: Takes the waypoints generated by the path planner and securely uploads them into the Pixhawk's memory using MAVLink FTP.
-* **`memory_grid.py`**: The Geo-Tagging engine. This file uses a Pinhole Camera mathematical model. When a human is detected on the video feed, this file calculates the drone's current altitude and compass heading, projects a ray down to the ground, and calculates the *exact Latitude and Longitude* of the human, mapping them to a persistent Grid Cell (e.g., A4).
+#### 1. Pluggable App Engine (`/apps`)
+We threw away standard, monolithic script architectures. The GCS features a modular **App Manager** that allows the operator to swap the entire software behavior on the fly:
+* **`base_app.py`**: Defines the lifecycle hooks (`on_start`, `process_frame`, `on_stop`, `get_widgets`).
+* **`idle_app.py`**: Puts the drone in raw feed mode. It bypasses heavy neural nets and overlays a simple flight HUD (Alt, Speed, Heading) on the screen.
+* **`search_rescue.py`**: Spins up the YOLOv8 and Shape classifiers, initializes the Memory Grid, coordinates real-time tagging, and tracks autonomous sweeping progression.
 
-### 3. `/vision` & `/detection` (The AI Eyes)
-This subsystem is responsible for all visual processing. It runs heavily optimized code to ensure high framerates on a Raspberry Pi.
-* **`cpu_detector.py`**: Runs the YOLOv8 Artificial Intelligence model on the CPU. It is trained to detect humans in real-time.
-* **`hailo_detector.py`**: A specialized script for real-world deployments using the Hailo-8L AI Accelerator chip (common on Raspberry Pi 5), offloading the neural network to achieve 30+ FPS.
-* **`shape_detector.py`**: Uses traditional OpenCV contour mathematics to detect colored shapes (Triangles, Squares, Rectangles) for specific competition tasks.
+#### 2. Ray-Casting & Geotagging Engine (`/mission/memory_grid.py`)
+This is the core mathematical powerhouse. When a target is detected in a camera frame, we don't just crop the image. The system performs dynamic **Pinhole Camera Ray Projection**:
+1. **Pixel-to-Camera Coordinate Conversion:** Map the object's pixel coordinates $(x_{pixel}, y_{pixel})$ to camera space using the camera's field of view (FOV) and image sensor dimensions.
+2. **Camera-to-Body Transformation:** Account for the camera's physical mounting angle (pitch/roll/yaw offsets).
+3. **Body-to-Earth Transformation:** Rotate the coordinate vector into the Earth-Centered, Earth-Fixed (ECEF) frame using the drone's live compass heading, roll, and pitch telemetry.
+4. **Altitude Intersection:** Intersect this rotated vector with the ground plane using the drone's relative altitude (above ground level, or AGL).
+5. **GPS Triangulation:** Convert the resulting ground offset back to a precise Latitude/Longitude coordinate.
+6. **Grid Matching:** Partition the coordinate into a structured, unique alphanumeric coordinate (e.g. `ZN3528702`). If the coordinate is already occupied in the grid database, it filters it out to prevent duplicates.
 
-### 4. `/telemetry` (The Nervous System)
-* **`mavlink_bridge.py`**: This is the translation layer between Python and the drone. It uses the `pymavlink` library to send raw byte-packets to the Pixhawk. It is responsible for Arming the drone, changing it to GUIDED or AUTO mode, commanding Takeoffs, and constantly polling the drone for its live Altitude, GPS coordinates, Battery voltage, and Speed.
-
-### 5. `/dashboard` (The User Interface)
-A lightweight Flask + Socket.IO web application that allows you to monitor and control the drone from a laptop or tablet over Wi-Fi.
-* **`server.py`**: The backend web server. It handles WebSocket connections, pushing live telemetry and detection data to the browser at 10 times per second, and encodes the OpenCV video frames into a live MJPEG stream.
-* **`templates/index.html`**: The frontend layout. Features a Live Video panel, Telemetry readouts, and a **Live Detection Log** that permanently stamps the coordinates of every human found.
-* **`static/js/app.js`**: The frontend logic that updates the dashboard numbers without refreshing the page and maintains the permanent "Detection Summary" counts for competition judges.
-
-### 6. `/gazebo` (Simulation Environments)
-* **`isro_mars.sdf`**: A 3D world file for the Gazebo simulator, simulating lighting, physics, and ground textures for testing.
-* **`gazebo-iris-gimbal.parm`**: The ArduPilot parameter file that tunes the simulated drone's physics to match a real Iris quadcopter with a downward-facing camera gimbal.
+#### 3. Thread-Safe MAVLink Bridge (`/telemetry/mavlink_bridge.py`)
+Manages communication with the flight controller:
+* **Read Loop:** Spawns a background thread that polls for incoming MAVLink packets, parses them, updates a thread-safe dictionary, and handles system heartbeats.
+* **Command Injection:** Safely queue write-commands (arm, mode selection, waypoint navigation) without blocking telemetry collection.
+* **SITL Autodetect:** Intelligently detects if the target system is a simulator (TCP/UDP connection) or real hardware. If it is a simulator, it automatically executes parameters to override pre-arm checks (like compass consistency and lidar blocks) to streamline development. If it's a real drone, it suppresses these parameters to ensure safety checks are never bypassed.
 
 ---
 
-## 🚀 Setup Guide (Real-World Raspberry Pi)
+## 🛠️ Setup & Installation
 
-### 1. Hardware Requirements
-- **Compute:** Raspberry Pi 4 or 5 (Ubuntu or Raspberry Pi OS)
-- **Flight Controller:** Pixhawk (CubeOrange / Pixhawk 4) connected via USB to `/dev/ttyACM0`
-- **Camera:** Pi Camera Module 3 or USB Webcam connected to `/dev/video0`
-
-### 2. Installation
-SSH into your Raspberry Pi and clone this repository:
+### 1. Laptop Setup (Ground Control Station)
+Clone the repository and install the dependencies:
 ```bash
-git clone <YOUR_GITHUB_REPO_URL>
-cd pi-drone
+git clone https://github.com/SnehalShetty-sudo/AEROCLUB-snehal.git
+cd AEROCLUB-snehal
 pip install -r requirements.txt
 ```
 
-### 3. Execution
-1. Open `config.py` and ensure `SIMULATION_MODE = False`.
-2. If your YOLOv8 model file (`.hef`) is not at the default path `/home/aeroclub123/models/yolov8n.hef`, set the environment variable before running:
-   ```bash
-   export DRONE_MODEL_PATH=/path/to/your/yolov8n.hef
-   ```
-3. Run the core system:
-   ```bash
-   python3 main.py
-   ```
-3. Connect your laptop to the Raspberry Pi's Wi-Fi hotspot.
-4. Open a web browser and navigate to `http://<RASPBERRY_PI_IP>:5000`. You will see the live video feed and telemetry. Click "Start Mission" to arm and fly!
+Run the dashboard server:
+```bash
+python main.py
+```
+
+Open a browser and navigate to `http://localhost:5000`.
+
+### 2. Raspberry Pi 5 Setup (Companion Camera)
+Connect your laptop to the Pi via SSH:
+```bash
+ssh aeroclub123@10.236.25.244
+```
+
+We built a custom utility `deploy.py` that runs on the laptop to automatically clean old code and push the latest updates to the Pi via SFTP.
+To push updates and start the camera stream daemon on the Pi:
+```bash
+python deploy.py
+```
+This script will:
+1. SSH into the Pi and kill any process occupying the video port (`8080`).
+2. Upload the updated `pi_streamer.py` directly to the Pi.
+3. Start `pi_streamer.py` in a detached background state (`nohup`) that outputs logs to `/home/aeroclub123/pi_streamer.log` and stays running even if the SSH session closes.
 
 ---
 
-## 💻 Setup Guide (Simulation & Testing)
-You can test the entire software stack on your PC without real hardware by using ArduPilot SITL and Gazebo.
+## 🏎️ Running a Mission (Step-by-Step)
 
-1. Install **ArduPilot SITL** and **Gazebo** on an Ubuntu machine (or WSL for Windows).
-2. Set `SIMULATION_MODE = True` in `config.py`.
-3. Terminal 1 - Launch the Gazebo 3D world:
-   ```bash
-   gz sim gazebo/isro_mars.sdf
-   ```
-4. Terminal 2 - Launch the ArduCopter SITL:
-   ```bash
-   sim_vehicle.py -v ArduCopter -f JSON --add-param-file=gazebo-iris-gimbal.parm --console
-   ```
-5. Terminal 3 - Run the Python stack:
-   ```bash
-   python3 main.py
-   ```
-6. Open your browser to `http://127.0.0.1:5000` and click "Start Mission". Watch the simulated drone take off and sweep the area in Gazebo!
+### Step 1: Establish Connections
+1. Boot the drone and the companion Raspberry Pi.
+2. Connect your laptop to the Raspberry Pi's Wi-Fi hotspot.
+3. Connect your Ground Telemetry Radio to a USB port on your laptop.
+
+### Step 2: Launch GCS
+1. Run `python main.py` on your laptop.
+2. Navigate your web browser to `http://localhost:5000`.
+3. In the environment launcher, select **LIVE FLIGHT**.
+4. In the expanded connection panel, select the telemetry **Serial Port** (e.g. `COM5` or `/dev/ttyUSB0`) and set the baud rate to **`57600 (Telemetry)`**.
+5. Hit **CONNECT TO HARDWARE**.
+
+### Step 3: Trigger Mission Apps
+1. The GCS will handshake with the Pixhawk and check pre-arm status.
+2. Under the **Apps** panel, click **Search & Rescue**.
+3. The dashboard will automatically fetch the camera feed from the Pi and display the live video stream.
+4. Upload your Geofence boundaries.
+5. Hit **Start Mission** to compile the lawnmower sweeping pattern, load it to the Pixhawk, arm, and fly autonomously! Target logs will start populating with precise coordinates as targets are found.

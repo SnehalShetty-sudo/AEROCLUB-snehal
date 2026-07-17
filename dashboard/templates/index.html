@@ -48,7 +48,7 @@
                 <button id="btn-live-flight" class="tactical-btn" style="border-color:var(--color-green); color:var(--color-green); margin-right:10px;">
                     <i class="fa-solid fa-plane-up"></i> LIVE FLIGHT
                 </button>
-                <a href="{{ url_for('static', filename='report.html') }}" target="_blank" class="tactical-btn" style="text-decoration:none; font-size:0.8rem; padding: 5px 10px;">
+                <a href="{{ url_for('report') }}" target="_blank" class="tactical-btn" style="text-decoration:none; font-size:0.8rem; padding: 5px 10px;">
                     <i class="fa-solid fa-file-pdf"></i> GENERATE REPORT
                 </a>
             </div>
@@ -130,6 +130,10 @@
                                 <span><i class="fa-solid fa-video"></i> VIDEO LINK</span>
                                 <span class="nominal-text">/video_feed</span>
                             </li>
+                            <li>
+                                <span><i class="fa-solid fa-crosshairs"></i> DETECTIONS</span>
+                                <span class="nominal-text" id="app-stat-detections">0</span>
+                            </li>
                         </ul>
                     </div>
                 </aside>
@@ -179,9 +183,11 @@
 
                     <div class="panel-section">
                         <h2 class="section-title">PROVISIONING</h2>
-                        <div class="setup-menu" style="grid-template-columns: 1fr 1fr;">
+                        <div class="setup-menu" style="grid-template-columns: 1fr 1fr; gap: 5px;">
                             <button class="tactical-btn setup-btn" data-app="APPS"><i class="fa-solid fa-rocket"></i> Apps</button>
                             <button class="tactical-btn setup-btn" data-app="CALIBRATE"><i class="fa-solid fa-compass"></i> Calib</button>
+                            <button class="tactical-btn setup-btn" data-app="PROFILES"><i class="fa-solid fa-sliders"></i> Profiles</button>
+                            <button class="tactical-btn setup-btn" data-app="LOGS"><i class="fa-solid fa-book"></i> Logs</button>
                         </div>
                     </div>
 

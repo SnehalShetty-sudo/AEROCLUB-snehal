@@ -117,6 +117,15 @@ class MavlinkBridge:
                     self._state["mode"] = "GUIDED"
                 elif cmd_name == "rtl":
                     self._state["mode"] = "RTL"
+                elif cmd_name == "arm":
+                    self._state["armed"] = True
+                elif cmd_name == "disarm":
+                    self._state["armed"] = False
+                elif cmd_name == "kill":
+                    self._state["armed"] = False
+                    self._state["alt"] = 0.0
+                elif cmd_name == "land":
+                    self._state["mode"] = "LAND"
             return
             
         if not self.master:
@@ -211,6 +220,30 @@ class MavlinkBridge:
                 self.master.target_system,
                 mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
                 6
+            )
+        elif cmd_name == "arm":
+            self.master.mav.command_long_send(
+                self.master.target_system, self.master.target_component,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                0, 1, 0, 0, 0, 0, 0, 0
+            )
+        elif cmd_name == "disarm":
+            self.master.mav.command_long_send(
+                self.master.target_system, self.master.target_component,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                0, 0, 0, 0, 0, 0, 0, 0
+            )
+        elif cmd_name == "kill":
+            self.master.mav.command_long_send(
+                self.master.target_system, self.master.target_component,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                0, 0, 21196, 0, 0, 0, 0, 0
+            )
+        elif cmd_name == "land":
+            self.master.mav.set_mode_send(
+                self.master.target_system,
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                9
             )
 
     def _read_loop(self):

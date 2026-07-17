@@ -264,9 +264,73 @@ document.addEventListener("DOMContentLoaded", () => {
                         document.getElementById('cal-progress').textContent = `Initiating ${calType.toUpperCase()}...`;
                     });
                 });
+            } else if (type === 'PROFILES') {
+                showModal('// DRONE PROFILES', `<div id="profiles-grid" class="grid-2">Loading...</div>`);
+                fetch('/api/profiles')
+                    .then(r => r.json())
+                    .then(data => {
+                        const grid = document.getElementById('profiles-grid');
+                        grid.innerHTML = '';
+                        if (data.profiles && data.profiles.length > 0) {
+                            data.profiles.forEach(p => {
+                                grid.innerHTML += `
+                                    <div class="app-card">
+                                        <div class="app-card-title">${p.name} (v${p.version})</div>
+                                        <div class="app-card-desc">FC: ${p.fc} | Frame: ${p.frame}</div>
+                                        <button class="tactical-btn" onclick="activateProfile('${p.id}')">ACTIVATE</button>
+                                    </div>
+                                `;
+                            });
+                        } else {
+                            grid.innerHTML = '<p>No profiles found.</p>';
+                        }
+                    })
+                    .catch(e => console.error(e));
+            } else if (type === 'LOGS') {
+                showModal('// FLIGHT LOGS', `<div id="logs-container">Loading...</div>`);
+                fetch('/api/logs')
+                    .then(r => r.json())
+                    .then(data => {
+                        const container = document.getElementById('logs-container');
+                        if (data.logs && data.logs.length > 0) {
+                            let tableHTML = `<table class="logs-table" style="width:100%; text-align:left; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--color-cyan); color: var(--color-cyan);">
+                                        <th>Date</th><th>Duration (s)</th><th>Detections</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                            data.logs.forEach(l => {
+                                tableHTML += `<tr>
+                                    <td>${new Date(l.start_time * 1000).toLocaleString()}</td>
+                                    <td>${l.duration.toFixed(1)}</td>
+                                    <td>${l.total_detections}</td>
+                                </tr>`;
+                            });
+                            tableHTML += `</tbody></table>`;
+                            container.innerHTML = tableHTML;
+                        } else {
+                            container.innerHTML = '<p>No flight logs found.</p>';
+                        }
+                    })
+                    .catch(e => console.error(e));
             }
         });
     });
+
+    window.activateProfile = function(profileId) {
+        tacLog(`[PROFILE] Activating profile: ${profileId}`, 'warn');
+        fetch('/api/profiles/active', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({profile_id: profileId})
+        }).then(r => r.json()).then(data => {
+            if(data.success) {
+                tacLog(`[PROFILE] Activated successfully.`, 'success');
+                hideModal();
+            }
+        });
+    };
 
     socket.on('calibration_progress', (data) => {
         const prog = document.getElementById('cal-progress');
@@ -315,9 +379,27 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- LIVE FLIGHT SETUP ---
     const btnLiveFlight = document.getElementById('btn-live-flight');
     if(btnLiveFlight) {
-        btnLiveFlight.addEventListener('click', () => {
+        btnLiveFlight.addEventListener('click', async () => {
+            // First fetch available ports
+            let portOptions = '<option value="/dev/ttyAMA0">/dev/ttyAMA0</option>';
+            try {
+                const res = await fetch('/api/ports');
+                const data = await res.json();
+                if (data.ports && data.ports.length > 0) {
+                    portOptions = data.ports.map(p => `<option value="${p.device}">${p.device} - ${p.description}</option>`).join('');
+                }
+            } catch (e) {
+                console.error("Failed to fetch ports:", e);
+            }
+
             showModal('// INITIALIZE FLIGHT ENVIRONMENT', `
                 <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="margin-bottom: 15px;">
+                        <label style="color:var(--color-cyan); font-size:0.9rem;">SELECT HARDWARE PORT:</label><br>
+                        <select id="live-port-select" style="background:rgba(0,0,0,0.5); color:var(--color-cyan); border:1px solid var(--color-cyan); padding:8px; width:100%; margin-top:5px; font-family:'Courier New', monospace;">
+                            ${portOptions}
+                        </select>
+                    </div>
                     <button class="tactical-btn" onclick="startEnv('SITL')">START SIMULATOR (SITL)</button>
                     <button class="tactical-btn btn-danger" onclick="startEnv('LIVE')">START LIVE FLIGHT (HW)</button>
                 </div>
@@ -327,16 +409,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.startEnv = async function(mode) {
         tacLog(`[ENV] Initializing ${mode} environment...`, 'warn');
+        let port = '/dev/ttyAMA0';
+        const portSelect = document.getElementById('live-port-select');
+        if (portSelect) {
+            port = portSelect.value;
+        }
         hideModal();
         try {
             const res = await fetch('/api/env/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: mode, port: '/dev/ttyAMA0', baud: 57600 }) // defaults
+                body: JSON.stringify({ mode: mode, port: port, baud: 57600 }) // using selected port
             });
             const data = await res.json();
             if (data.success) {
-                tacLog(`[ENV] ${mode} Environment Online!`, 'success');
+                tacLog(`[ENV] ${mode} Environment Online on ${port}!`, 'success');
             } else {
                 tacLog(`[ENV] Failed: ${data.error}`, 'error');
             }

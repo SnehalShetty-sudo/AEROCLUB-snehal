@@ -116,6 +116,13 @@ def index():
     import json
     return render_template('index.html', geofence=json.dumps(GEOFENCE_POLYGON))
 
+@app.route('/landing')
+def landing():
+    return render_template('landing.html')
+
+@app.route('/report')
+def report():
+    return render_template('report.html')
 
 @app.route('/video_feed')
 def video_feed():

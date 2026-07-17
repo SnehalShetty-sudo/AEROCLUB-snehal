@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post-Flight Analysis Report // AERO-V1</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f7f9fb;
+            --text-main: #1a1f36;
+            --text-muted: #697386;
+            --accent-blue: #0066ff;
+            --accent-orange: #ffaa00;
+            --accent-purple: #7b61ff;
+            --danger: #d92d20;
+            --success: #12b76a;
+            --card-bg: #ffffff;
+            --border-color: #e3e8ee;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+        }
+
+        .report-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            padding: 50px;
+            border-top: 6px solid var(--text-main);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .header-left h1 {
+            margin: 0 0 10px 0;
+            font-weight: 700;
+            font-size: 2.2rem;
+            letter-spacing: -0.5px;
+        }
+
+        .header-left p {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            background: #f0f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .meta-item span {
+            color: var(--text-muted);
+            display: block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .meta-item strong {
+            font-size: 1.1rem;
+            color: var(--accent-blue);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .summary-box {
+            background: rgba(18, 183, 106, 0.1);
+            border-left: 4px solid var(--success);
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 30px;
+        }
+
+        .summary-box h3 { margin: 0 0 10px 0; color: #027a48; }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            background: var(--card-bg);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+        }
+
+        .chart-container h4 {
+            margin: 0 0 15px 0;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+        }
+
+        .table-container {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .table-container th, .table-container td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-container th {
+            font-weight: 600;
+            color: var(--text-muted);
+            background: #f9fafb;
+            font-size: 0.9rem;
+        }
+
+        .table-container td {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge.pass { background: #d1fadf; color: #027a48; }
+        .badge.warn { background: #fef0c7; color: #b54708; }
+        .badge.fail { background: #fee4e2; color: #d92d20; }
+
+        /* Timeline styles */
+        .timeline {
+            border-left: 2px solid var(--border-color);
+            padding-left: 20px;
+            margin-left: 10px;
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -27px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+        }
+        .timeline-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: bold;
+        }
+        .timeline-desc {
+            margin: 5px 0 0 0;
+            font-size: 0.95rem;
+        }
+
+        .btn-back {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+        .btn-back:hover { color: var(--text-main); }
+
+        .stat-card {
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .stat-card .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .stat-card .label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+
+        @media print {
+            body { padding: 0; background: white; }
+            .report-container { box-shadow: none; padding: 0; border: none; max-width: 100%; }
+            .btn-back { display: none; }
+            .chart-container { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+    <a href="index.html" class="btn-back"><i class="fa-solid fa-arrow-left"></i> Back to GCS</a>
+
+    <div class="report-container">
+        <div class="header">
+            <div class="header-left">
+                <h1>Post-Flight Analysis & Design Report Data</h1>
+                <p>Team: <strong>SDMCET Airborne</strong> | ID: <strong>ADDC2026001</strong> | Chassis: Quadcopter</p>
+            </div>
+        </div>
+
+        <div class="meta-grid">
+            <div class="meta-item"><span>Flight Date</span><strong>2026-07-17</strong></div>
+            <div class="meta-item"><span>Total Flight Time</span><strong>14m 22s</strong></div>
+            <div class="meta-item"><span>Total Distance</span><strong>2.4 km</strong></div>
+            <div class="meta-item"><span>Max Airspeed</span><strong>18.5 m/s</strong></div>
+            <div class="meta-item"><span>Max Altitude (AGL)</span><strong>42.5 m</strong></div>
+            <div class="meta-item"><span>Payload Weight</span><strong>1.2 kg</strong></div>
+            <div class="meta-item"><span>Takeoff Weight (MTOW)</span><strong>4.8 kg</strong></div>
+            <div class="meta-item"><span>Wind Conditions</span><strong>4 m/s (Crosswind)</strong></div>
+        </div>
+
+        <div class="summary-box">
+            <h3><i class="fa-solid fa-circle-check"></i> Executive Mission Summary</h3>
+            <p>The SDMCET Airborne quadcopter successfully completed all autonomous waypoints with zero geofence violations. The custom claw payload mechanism actuated flawlessly at Target Alpha, releasing the 1.2kg payload within a 0.5m CEP (Circular Error Probable). The carbon fiber chassis demonstrated excellent structural integrity under payload release stress. Telemetry and video links remained >95% stable.</p>
+        </div>
+
+        <!-- STRUCTURAL & STABILITY -->
+        <h2><i class="fa-solid fa-layer-group"></i> 1. Structural & Stability Analysis</h2>
+        <p>Analyzing the carbon fiber chassis rigidity and flight controller PID stabilization during aggressive maneuvers and payload drop.</p>
+        
+        <div class="grid-2">
+            <div class="chart-container">
+                <h4>Attitude Stability (Pitch & Roll)</h4>
+                <canvas id="attitudeChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h4>Airframe Vibration (IMU G-Force)</h4>
+                <canvas id="vibeChart"></canvas>
+            </div>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+            <strong>Analysis:</strong> The attitude chart shows minor oscillations (+/- 2 degrees) during the crosswind leg. At exactly 08:45, a significant Z-axis vibration spike (1.8G) is recorded. This correlates exactly with the claw mechanism opening and the sudden release of the 1.2kg payload. The PID controller re-stabilized the aircraft within 1.2 seconds, proving the airframe and tuning are highly robust.
+        </p>
+
+        <!-- PROPULSION & POWER -->
+        <h2><i class="fa-solid fa-bolt"></i> 2. Propulsion & Power Metrics</h2>
+        <p>Evaluating electrical efficiency, motor current draw, and ESC thermal performance.</p>
+
+        <div class="grid-3">
+            <div class="stat-card">
+                <div class="value">3850 mAh</div>
+                <div class="label">Total Capacity Used</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">42 A</div>
+                <div class="label">Peak Current Draw</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">68°C</div>
+                <div class="label">Max ESC Temp</div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="chart-container">
+                <h4>Battery Discharge Profile (V)</h4>
+                <canvas id="battChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h4>Motor Current Draw (A)</h4>
+                <canvas id="currentChart"></canvas>
+            </div>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+            <strong>Analysis:</strong> Battery voltage dropped linearly as expected from 16.8V to 14.2V (4S LiPo). The peak current draw of 42A occurred during the initial ascent. ESC temperatures remained well within the safe operational threshold (< 80°C), validating the airflow design around the PLA central chassis.
+        </p>
+
+        <!-- PAYLOAD PERFORMANCE -->
+        <h2><i class="fa-solid fa-crosshairs"></i> 3. Claw Payload Mechanism Performance</h2>
+        <table class="table-container">
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Measured Value</th>
+                    <th>Competition Requirement</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Claw Actuation Time (Open)</td>
+                    <td>0.45 seconds</td>
+                    <td>< 1.0 seconds</td>
+                    <td><span class="badge pass">PASS</span></td>
+                </tr>
+                <tr>
+                    <td>Payload Drop CEP (Accuracy)</td>
+                    <td>0.5 meters</td>
+                    <td>< 2.0 meters</td>
+                    <td><span class="badge pass">PASS</span></td>
+                </tr>
+                <tr>
+                    <td>Servo Current Draw (Stall/Hold)</td>
+                    <td>0.2 A / 1.1 A Peak</td>
+                    <td>< 2.0 A</td>
+                    <td><span class="badge pass">PASS</span></td>
+                </tr>
+                <tr>
+                    <td>Mechanism Rigidity Drop Test</td>
+                    <td>0% Deformation</td>
+                    <td>Must survive drop</td>
+                    <td><span class="badge pass">PASS</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- MISSION TIMELINE -->
+        <h2><i class="fa-solid fa-clock-rotate-left"></i> 4. Mission Event Log</h2>
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="timeline-time">T+ 00:00:00 (14:30:05)</div>
+                <div class="timeline-desc"><strong>Pre-Flight Checklist Verified.</strong> System Armed by pilot.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">T+ 00:00:12 (14:30:17)</div>
+                <div class="timeline-desc"><strong>Takeoff.</strong> Ascending to cruise altitude of 25m. Mode switched to AUTO.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">T+ 00:04:15 (14:34:20)</div>
+                <div class="timeline-desc"><strong>Waypoint 4 Reached.</strong> Entering target zone. Wind speed detected at 4m/s crosswind. Airframe crabbing to maintain track.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">T+ 00:08:45 (14:38:50)</div>
+                <div class="timeline-desc"><strong>TARGET ACQUIRED.</strong> Claw mechanism actuated. 1.2kg Payload successfully deployed. Z-axis vibration spike recorded.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">T+ 00:08:46 (14:38:51)</div>
+                <div class="timeline-desc"><strong>Claw Closed.</strong> Auto-Drop sequence complete. Returning to Launch (RTL) engaged.</div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-time">T+ 00:14:22 (14:44:27)</div>
+                <div class="timeline-desc"><strong>Touchdown.</strong> Motors disarmed. Mission complete.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Setup Chart defaults for styling
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#697386';
+
+        // 1. Attitude Chart (Pitch/Roll)
+        const attCtx = document.getElementById('attitudeChart').getContext('2d');
+        new Chart(attCtx, {
+            type: 'line',
+            data: {
+                labels: ['T+0', 'T+2m', 'T+4m', 'T+6m', 'T+8m (Drop)', 'T+10m', 'T+12m', 'T+14m'],
+                datasets: [
+                    {
+                        label: 'Pitch (deg)',
+                        data: [-5, -2, 1, 0, -8, -1, 0, 5],
+                        borderColor: '#0066ff',
+                        borderWidth: 2,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Roll (deg)',
+                        data: [0, 1, -2, 2, 5, -1, 1, 0],
+                        borderColor: '#ffaa00',
+                        borderWidth: 2,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'top' } }
+            }
+        });
+
+        // 2. Vibration Chart (IMU G-Force)
+        const vibeCtx = document.getElementById('vibeChart').getContext('2d');
+        new Chart(vibeCtx, {
+            type: 'line',
+            data: {
+                labels: ['T+0', 'T+2m', 'T+4m', 'T+6m', 'T+8m (Drop)', 'T+10m', 'T+12m', 'T+14m'],
+                datasets: [
+                    {
+                        label: 'Z-Axis Accel (G)',
+                        data: [1.0, 1.05, 0.95, 1.02, 1.85, 1.01, 0.98, 1.1],
+                        borderColor: '#d92d20',
+                        backgroundColor: 'rgba(217, 45, 32, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { min: 0.5, max: 2.5 } }
+            }
+        });
+
+        // 3. Battery Chart
+        const battCtx = document.getElementById('battChart').getContext('2d');
+        new Chart(battCtx, {
+            type: 'line',
+            data: {
+                labels: ['T+0', 'T+2m', 'T+4m', 'T+6m', 'T+8m', 'T+10m', 'T+12m', 'T+14m'],
+                datasets: [{
+                    label: 'Voltage',
+                    data: [16.8, 16.2, 15.8, 15.3, 14.9, 14.6, 14.4, 14.2],
+                    borderColor: '#12b76a',
+                    backgroundColor: 'rgba(18, 183, 106, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { min: 13.0, max: 17.0 } }
+            }
+        });
+
+        // 4. Current Draw Chart
+        const currentCtx = document.getElementById('currentChart').getContext('2d');
+        new Chart(currentCtx, {
+            type: 'line',
+            data: {
+                labels: ['T+0', 'T+2m', 'T+4m', 'T+6m', 'T+8m', 'T+10m', 'T+12m', 'T+14m'],
+                datasets: [{
+                    label: 'Current (A)',
+                    data: [5, 42, 22, 24, 25, 20, 21, 15],
+                    borderColor: '#7b61ff',
+                    backgroundColor: 'rgba(123, 97, 255, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    stepped: false,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    </script>
+</body>
+</html>

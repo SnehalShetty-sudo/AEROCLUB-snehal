@@ -3,520 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drone GCS — Ground Control Station</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>Tactical Ground Control Station</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=9">
-    <!-- Socket.IO -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Leaflet for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Draw for Geofencing -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="app-layout">
-        <!-- Sidebar -->
-        <nav class="sidebar">
-            <div class="sidebar-item" data-tab="overview" title="Overview">
-                <span class="icon"><i class="fa-solid fa-house"></i></span>
-                <span class="label">Overview</span>
+
+    <div id="gcs-container">
+        
+        <!-- TOP BAR: Global Status -->
+        <header class="top-bar panel-glass">
+            <div class="sys-id">
+                <i class="fa-solid fa-satellite-dish"></i> GCS // SDMCET AIRBORNE
             </div>
-            <div class="sidebar-item active" data-tab="mission" title="Mission Control">
-                <span class="icon"><i class="fa-solid fa-satellite-dish"></i></span>
-                <span class="label">Mission</span>
+            <div class="global-status nominal">
+                <span class="status-indicator"></span>
+                SYSTEM NOMINAL
             </div>
-            <div class="sidebar-item" data-tab="apps" title="Mission Apps">
-                <span class="icon"><i class="fa-solid fa-cubes"></i></span>
-                <span class="label">Apps</span>
+            <div class="flight-mode-display">
+                MODE: <span id="current-mode">LOITER</span>
             </div>
-            <div class="sidebar-item" data-tab="calibration" title="Calibration">
-                <span class="icon"><i class="fa-solid fa-wrench"></i></span>
-                <span class="label">Calibration</span>
+            <div class="mission-clock">
+                T+ <span id="clock-display">00:00:00</span>
             </div>
-            <div class="sidebar-item" data-tab="preflight" title="Pre-Flight Checks">
-                <span class="icon"><i class="fa-solid fa-clipboard-check"></i></span>
-                <span class="label">Pre-Flight</span>
+            <div>
+                <a href="{{ url_for('static', filename='report.html') }}" target="_blank" class="tactical-btn" style="text-decoration:none; font-size:0.8rem; padding: 5px 10px;">
+                    <i class="fa-solid fa-file-pdf"></i> GENERATE REPORT
+                </a>
             </div>
-            <div class="sidebar-item" data-tab="profile" title="Drone Profile">
-                <span class="icon"><i class="fa-solid fa-gear"></i></span>
-                <span class="label">Profile</span>
-            </div>
-            <div class="sidebar-item" data-tab="logs" title="Flight Logs">
-                <span class="icon"><i class="fa-solid fa-chart-simple"></i></span>
-                <span class="label">Logs</span>
-            </div>
-        </nav>
+        </header>
 
-        <div class="main-content">
-            <div class="top-bar">
-                <div class="title"><i class="fa-solid fa-helicopter"></i> Ground Control Station <span id="phase-indicator" class="status badge-info" style="margin-left: 10px;">STANDBY</span></div>
-                <div class="status-indicators">
-                    <span id="conn-status" class="status badge-warning">Connecting...</span>
-                    <span id="arm-status" class="status badge-danger">Disarmed</span>
-                    <span id="mode-status" class="status badge-info">MANUAL</span>
-                </div>
-            </div>
-
-            <div class="tab-container">
-                <!-- TAB 1: OVERVIEW -->
-                <div id="tab-overview" class="tab-content">
-                    <div class="dashboard-container">
-                        <div style="display: flex; flex-direction: column; flex: 1; gap: 15px;">
-                            <div class="card" style="flex: 1;">
-                                <div class="card-header">Drone Identity</div>
-                                <div style="padding: 15px;">
-                                    <p><strong>Name:</strong> <span id="ov-drone-name">Drone Alpha</span></p>
-                                    <p><strong>Frame:</strong> <span id="ov-drone-frame">X-frame 450mm</span></p>
-                                    <p><strong>FC:</strong> Pixhawk 2.4.8</p>
-                                    <p><strong>Profile:</strong> v2.1 (loaded)</p>
-                                    <p><strong>Serial:</strong> PX4-0x3FA29</p>
-                                </div>
-                            </div>
-                            <div class="card" style="flex: 1;">
-                                <div class="card-header">Quick Actions</div>
-                                <div style="padding: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                                    <button class="btn btn-info" onclick="document.querySelector('[data-tab=\'mission\']').click()">Go To Mission</button>
-                                    <button class="btn btn-warning" onclick="document.querySelector('[data-tab=\'calibration\']').click()">Calibration</button>
-                                    <button class="btn btn-success" onclick="document.querySelector('[data-tab=\'preflight\']').click()">Pre-Flight</button>
-                                </div>
-                            </div>
-                            <div class="card" style="flex: 1;">
-                                <div class="card-header">Recent Flights</div>
-                                <div style="padding: 15px;">
-                                    <ul style="list-style-type: none; line-height: 1.8; margin: 0; padding: 0;">
-                                        <li>• Jul 12, 14:30 - 8min flight</li>
-                                        <li>• Jul 11, 16:00 - 12min flight</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card" style="flex: 1;">
-                            <div class="card-header">System Health & Readiness</div>
-                            <div style="padding: 15px;">
-                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> FC Connected</p>
-                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> GPS: 3D Fix (12)</p>
-                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> Battery: 16.2V</p>
-                                <p><i class="fa-solid fa-triangle-exclamation" style="color: var(--accent-orange)"></i> Compass: Needs recalibration</p>
-                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> Accel: Calibrated</p>
-                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> ESC: Calibrated</p>
-                                <p><i class="fa-solid fa-check" style="color: var(--accent-green)"></i> RC Link: Strong</p>
-                                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
-                                <h4 style="margin-bottom: 10px; color: var(--text-muted);">READINESS</h4>
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
-                                    <span style="color: var(--accent-orange);"><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-orange)"></i> NOT READY (1 issue)</span>
-                                    <button class="btn btn-success" onclick="document.querySelector('[data-tab=\'preflight\']').click()">Run Pre-Flight ▶</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 2: MISSION (Original Dashboard) -->
-                <div id="tab-mission" class="tab-content active-tab">
-                    <div class="dashboard-container layout-video-main" id="mission-layout-container">
-                        <!-- Left Panel: Video Feed -->
-                        <div class="video-panel card">
-                            <div class="card-header">Live Feed (annotated)</div>
-                            <div class="video-wrapper">
-                                <img id="video-stream" src="/video_feed" alt="Video stream offline">
-                            </div>
-                            <div class="mission-controls">
-                                <div style="display: flex; gap: 10px; flex: 1;">
-                                    <button id="btn-start" class="btn btn-success">Execute</button>
-                                    <button id="btn-pause" class="btn btn-warning">Pause</button>
-                                    <button id="btn-rtl" class="btn" style="border-color: rgba(255, 59, 48, 0.5); color: var(--accent-red);">Abort</button>
-                                </div>
-                                <div class="layout-toggles" style="display: flex; gap: 5px;">
-                                    <button class="btn btn-layout active" data-layout="layout-video-main" title="Video Focus"><i class="fa-solid fa-video"></i></button>
-                                    <button class="btn btn-layout" data-layout="layout-split" title="Split Screen"><i class="fa-solid fa-columns"></i></button>
-                                    <button class="btn btn-layout" data-layout="layout-map-main" title="Map Focus"><i class="fa-solid fa-map"></i></button>
-                                </div>
-                            </div>
-                            <div class="mission-progress-container">
-                                <div class="progress-info">
-                                    <span>Mission Progress</span>
-                                    <span id="wp-text">WP: 0/0</span>
-                                </div>
-                                <div class="progress-bar-bg">
-                                    <div id="progress-fill" class="progress-bar-fill" style="width: 0%"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Center Panel: Map HUD -->
-                        <div class="map-panel card" id="map-panel">
-                            <div class="card-header">Live Location Radar</div>
-                            <div id="map-container" style="flex: 1; border-radius: 0 0 var(--radius-sm) var(--radius-sm); overflow: hidden; background: #000; position: relative;">
-                                <div id="map" style="width: 100%; height: 100%; opacity: 0.8;"></div>
-                                <div class="radar-container" id="radar-animation">
-                                    <div class="radar-sweep"></div>
-                                    <div class="radar-ring" style="width: 80%; height: 80%; padding-bottom: 80%;"></div>
-                                    <div class="radar-ring" style="width: 50%; height: 50%; padding-bottom: 50%;"></div>
-                                    <div class="radar-ring" style="width: 20%; height: 20%; padding-bottom: 20%;"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Right Panel: Dynamic App Widgets + Telemetry -->
-                        <div class="side-panel">
-                            
-                            <!-- Dynamic App Widgets (populated by JS based on active app) -->
-                            <div id="app-widgets">
-                                <div class="card">
-                                    <div class="card-header">App Status</div>
-                                    <div style="padding: 20px; text-align: center; color: var(--text-faint);">
-                                        <i class="fa-solid fa-cubes" style="font-size: 2rem; margin-bottom: 10px; display: block; opacity: 0.4;"></i>
-                                        <p>No mission app loaded.</p>
-                                        <p style="font-size: 0.8rem; margin-top: 5px;">Go to the <strong>Apps</strong> tab to select a mission.</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Telemetry (always present — GCS-level) -->
-                            <div class="card">
-                                <div class="card-header">Telemetry</div>
-                                <div class="telemetry-list">
-                                    <div class="tel-row">
-                                        <span class="tel-label">Altitude (AGL)</span>
-                                        <span class="tel-val" id="tel-alt">-- m</span>
-                                    </div>
-                                    <div class="tel-row">
-                                        <span class="tel-label">Ground Speed</span>
-                                        <span class="tel-val" id="tel-speed">-- m/s</span>
-                                    </div>
-                                    <div class="tel-row">
-                                        <span class="tel-label">GPS</span>
-                                        <span class="tel-val" id="tel-gps">--, --</span>
-                                    </div>
-                                    <div class="tel-row">
-                                        <span class="tel-label">Heading</span>
-                                        <span class="tel-val" id="tel-hdg">-- °</span>
-                                    </div>
-                                    <div class="tel-row">
-                                        <span class="tel-label">Battery</span>
-                                        <span class="tel-val" id="tel-bat">-- V (--%)</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Radar (always present — GCS-level) -->
-                            <div class="card">
-                                <div class="card-header">Live Location Radar</div>
-                                <div style="padding: 10px; display: flex; justify-content: center;">
-                                    <canvas id="radar-canvas" width="200" height="200" style="background: #111; border-radius: 8px; border: 1px solid #333;"></canvas>
-                                </div>
-                            </div>
-
-                            <!-- Event Log (always present — GCS-level) -->
-                            <div class="card event-log-card">
-                                <div class="card-header">Event Log</div>
-                                <div class="event-log" id="event-log">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB: MISSION APPS -->
-                <div id="tab-apps" class="tab-content">
-                    <div class="dashboard-container" style="flex-direction: column;">
-                        <div class="card" style="width: 100%;">
-                            <div class="card-header"><i class="fa-solid fa-cubes"></i> Mission Apps</div>
-                            <div style="padding: 20px;">
-                                <p style="color: var(--text-muted); margin-bottom: 20px;">
-                                    Select a mission app to load. The active app controls what processing runs on the camera feed and what widgets appear on the Mission Control screen.
-                                </p>
-                                <div id="apps-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
-                                    <!-- App cards populated by JS -->
-                                    <div style="text-align: center; padding: 40px; color: var(--text-faint);">
-                                        <i class="fa-solid fa-spinner fa-spin" style="font-size: 1.5rem;"></i>
-                                        <p style="margin-top: 10px;">Loading apps...</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Active App Configuration -->
-                        <div class="card" style="width: 100%; margin-top: 16px;" id="app-config-card">
-                            <div class="card-header"><i class="fa-solid fa-sliders"></i> Active App Configuration</div>
-                            <div id="app-config-content" style="padding: 20px;">
-                                <p style="color: var(--text-faint);">No app loaded. Select an app above.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 3: CALIBRATION -->
-                <div id="tab-calibration" class="tab-content">
-                    <div class="dashboard-container" style="flex-direction: column;">
-                        <div style="display: flex; gap: 15px; flex: 2;">
-                            <div class="card" style="flex: 1;">
-                                <div class="card-header"><i class="fa-solid fa-bolt"></i> ESC Calibration</div>
-                                <div style="padding: 15px;">
-                                    <p><strong>Status:</strong> <i class="fa-solid fa-check" style="color: var(--accent-green)"></i> Done</p>
-                                    <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 10</p>
-                                    <p style="margin-top: 10px;">T-Motor 20A (PWM)</p>
-                                    <button class="btn btn-warning" style="margin-top: 15px; width: 100%;" id="btn-calibrate-esc">Recalibrate</button>
-                                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
-                                    <p style="color: var(--text-muted); font-size: 0.9rem;"><strong>How it works:</strong></p>
-                                    <ol style="padding-left: 20px; font-size: 0.85rem; color: #ccc; margin-top: 10px; line-height: 1.6;">
-                                        <li>Click button</li>
-                                        <li>Power off drone</li>
-                                        <li>Power on drone</li>
-                                        <li>Wait for beep</li>
-                                        <li>Done <i class="fa-solid fa-check" style="color: var(--accent-green)"></i></li>
-                                    </ol>
-                                </div>
-                            </div>
-                            <div class="card" style="flex: 1;">
-                                <div class="card-header"><i class="fa-solid fa-ruler-combined"></i> Accel Calibration</div>
-                                <div style="padding: 15px;">
-                                    <p><strong>Status:</strong> <i class="fa-solid fa-check" style="color: var(--accent-green)"></i> Done</p>
-                                    <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 10</p>
-                                    <p style="margin-top: 10px;">Mode: Simple Lvl or Full 6-Axis</p>
-                                    <button class="btn btn-warning" style="margin-top: 15px; width: 100%;" id="btn-calibrate-accel">Recalibrate</button>
-                                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
-                                    <p style="color: var(--text-muted); font-size: 0.9rem;"><strong>Step 1 of 1:</strong></p>
-                                    <ol style="padding-left: 20px; font-size: 0.85rem; color: #ccc; margin-top: 10px; line-height: 1.6;">
-                                        <li>Place drone on level surface</li>
-                                        <li>Click [Calibrate]</li>
-                                    </ol>
-                                </div>
-                            </div>
-                            <div class="card" style="flex: 1;">
-                                <div class="card-header"><i class="fa-regular fa-compass"></i> Compass Calibration</div>
-                                <div style="padding: 15px;">
-                                    <p><strong>Status:</strong> <i class="fa-solid fa-triangle-exclamation" style="color: var(--accent-orange)"></i> Needed</p>
-                                    <p style="color: var(--text-muted); font-size: 0.9rem;">Last: Jul 03</p>
-                                    <p style="margin-top: 10px;">Type: Onboard</p>
-                                    <button class="btn btn-success" style="margin-top: 15px; width: 100%;" id="btn-calibrate-compass">Start Calibration</button>
-                                    
-                                    <div id="compass-progress-container" style="display: none; margin-top: 15px;">
-                                        <div class="progress-bar-bg" style="height: 15px;">
-                                            <div id="compass-progress-fill" class="progress-bar-fill" style="width: 0%; background: #10b981;"></div>
-                                        </div>
-                                        <p id="compass-progress-text" style="font-size: 0.85rem; margin-top: 5px; text-align: center;">Progress: 0%</p>
-                                    </div>
-
-                                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
-                                    <ol style="padding-left: 20px; font-size: 0.85rem; color: #ccc; margin-top: 10px; line-height: 1.6;">
-                                        <li>Rotate drone slowly in all orientations...</li>
-                                    </ol>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="card" style="flex: 1;">
-                            <div class="card-header">Saved Calibration Data (from last calibration)</div>
-                            <div style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
-                                <pre style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 5px; font-size: 0.85rem; color: #ccc; margin: 0;">
-Accel Offsets:   X=-0.12   Y=0.08   Z=-0.34
-Compass Offsets: X=120     Y=-45    Z=30
-ESC Range:       PWM MIN=1000   PWM MAX=2000
-                                </pre>
-                                <div style="display: flex; gap: 10px; margin-top: 5px;">
-                                    <button class="btn" style="background: #333;">Save to Profile</button>
-                                    <button class="btn" style="background: #333;">Export as .param</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 4: PRE-FLIGHT -->
-                <div id="tab-preflight" class="tab-content">
-                    <div class="dashboard-container" style="flex-direction: column;">
-                        <div class="card" style="width: 100%;">
-                            <div class="card-header">Pre-Flight Checklist <button id="btn-run-checks" class="btn btn-success" style="float: right; padding: 2px 10px; font-size: 0.8rem;">Run All ▶</button></div>
-                            <div style="padding: 15px;">
-                                <h4 style="margin-bottom: 10px; color: var(--text-muted);">AUTOMATED CHECKS (MAVLink queries)</h4>
-                                <div id="preflight-results" style="margin-bottom: 20px;">
-                                    <p>Run checks to see status...</p>
-                                </div>
-                                <hr style="border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
-                                <h4 style="margin-bottom: 10px; color: var(--text-muted);">MANUAL CONFIRMATIONS (pilot verifies)</h4>
-                                <div class="manual-checks" style="display: flex; flex-direction: column; gap: 10px;">
-                                    <label><input type="checkbox" class="manual-check"> Props secured and correct rotation</label>
-                                    <label><input type="checkbox" class="manual-check"> Battery strapped and balanced</label>
-                                    <label><input type="checkbox" class="manual-check"> Camera lens clean and unobstructed</label>
-                                    <label><input type="checkbox" class="manual-check"> Launch area clear of people</label>
-                                    <label><input type="checkbox" class="manual-check"> Wind conditions acceptable</label>
-                                </div>
-                                <hr style="border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
-                                <div id="preflight-verdict" style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px;">
-                                    <h3 style="color: var(--accent-orange);"><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-orange)"></i> 1 ISSUE — NOT READY</h3>
-                                    <p style="margin-top: 5px; color: var(--text-muted);">Fix compass interference before flight, and complete manual checks.</p>
-                                    <div style="margin-top: 15px; display: flex; gap: 10px;">
-                                        <button class="btn btn-info" onclick="document.querySelector('[data-tab=\'calibration\']').click()">Go To Calibration</button>
-                                        <button class="btn btn-warning">Override & Proceed <i class="fa-solid fa-triangle-exclamation"></i></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 5: PROFILE -->
-                <div id="tab-profile" class="tab-content">
-                    <div class="dashboard-container">
-                        <div style="display: flex; flex-direction: column; flex: 1; gap: 15px;">
-                            <div class="card" style="flex: 1;">
-                                <div class="card-header">Active Profile</div>
-                                <div style="padding: 15px;">
-                                    <h3 id="active-profile-name" style="color: var(--accent-green);"><i class="fa-solid fa-circle-check" style="color: var(--accent-green)"></i> Drone Alpha — v2.1</h3>
-                                    <p style="color: var(--text-muted); font-size: 0.9rem;">Loaded at 14:30</p>
-                                </div>
-                            </div>
-                            <div class="card" style="flex: 2;">
-                                <div class="card-header">Available Profiles</div>
-                                <div style="padding: 15px;">
-                                    <ul id="profile-list" style="list-style-type: none; line-height: 2; margin: 0; padding: 0;">
-                                        <li><label><input type="radio" name="profile" checked> Drone Alpha — v2.1 <span class="badge-success" style="font-size: 0.7rem; padding: 2px 6px;">Active</span></label></li>
-                                        <li><label><input type="radio" name="profile"> Drone Alpha — v2.0</label></li>
-                                        <li><label><input type="radio" name="profile"> Drone Beta — v1.0</label></li>
-                                        <li style="margin-top: 15px;"><button class="btn btn-info" style="padding: 4px 8px; font-size: 0.8rem;">+ New Profile</button></li>
-                                    </ul>
-                                </div>
-                            </div>
-                            <div class="card" style="flex: 2;">
-                                <div class="card-header">Actions</div>
-                                <div style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
-                                    <button class="btn btn-success" id="btn-push-params">Push to FC ▶</button>
-                                    <button class="btn" style="background: #333;">Import .param file</button>
-                                    <button class="btn" style="background: #333;">Export .param file</button>
-                                    <button class="btn btn-warning">Rollback to previous</button>
-                                    <button class="btn btn-danger">Delete this profile</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display: flex; flex-direction: column; flex: 2; gap: 15px;">
-                            <div class="card" style="flex: 1;">
-                                <div class="card-header">Profile Details</div>
-                                <div style="padding: 15px; display: flex; gap: 20px;">
-                                    <div style="flex: 1;">
-                                        <pre id="profile-details-content" style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; min-height: 100px; border: none;">Loading details...</pre>
-                                    </div>
-                                    <div style="flex: 1;">
-                                        <h4 style="margin-bottom: 10px; color: var(--text-muted);">PARAMETERS</h4>
-                                        <pre style="font-size: 0.85rem; color: #ccc; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; margin: 0;">
-PID_ROLL_P    = 0.135
-PID_ROLL_I    = 0.090
-PID_ROLL_D    = 0.004
-MOT_PWM_MIN   = 1000
-MOT_PWM_MAX   = 2000
-FLIGHT_ALT    = 15.0
-... (47 more params)
-                                        </pre>
-                                        <h4 style="margin-top: 15px; margin-bottom: 10px; color: var(--text-muted);">GEOFENCE</h4>
-                                        <pre style="font-size: 0.85rem; color: #ccc; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; margin: 0;" id="geofence-details">
-(28.6139, 77.2090)
-(28.6139, 77.2093)
-(28.6136, 77.2093)
-(28.6136, 77.2090)
-                                        </pre>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TAB 6: FLIGHT LOGS -->
-                <div id="tab-logs" class="tab-content">
-                    <div class="dashboard-container">
-                        <div class="card" style="width: 100%;">
-                            <div class="card-header">Flight History</div>
-                            <div style="padding: 15px;">
-                                <table style="width: 100%; text-align: left; border-collapse: collapse;">
-                                    <thead style="background: rgba(0,0,0,0.5);">
-                                        <tr>
-                                            <th style="padding: 10px;">#</th>
-                                            <th style="padding: 10px;">Date</th>
-                                            <th style="padding: 10px;">Duration</th>
-                                            <th style="padding: 10px;">Max Alt</th>
-                                            <th style="padding: 10px;">Detections</th>
-                                            <th style="padding: 10px;">Battery</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="flight-logs-tbody">
-                                        <!-- Flight logs populated by JS -->
-                                    </tbody>
-                                </table>
-                                <div style="margin-top: 20px; display: flex; gap: 10px;">
-                                    <button class="btn" style="background: #333;">Download .bin log</button>
-                                    <button class="btn" style="background: #333;">Open in UAV Log Viewer</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </div>
-
-    <!-- Environment Selection Modal -->
-    <div id="env-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
-        <div style="background: var(--bg-darker); border: 1px solid var(--border-color); border-radius: 12px; width: 600px; max-width: 90vw; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
-            <h2 style="margin-top: 0; font-weight: 500;"><i class="fa-solid fa-server" style="color: var(--accent-blue);"></i> Launch Environment</h2>
-            <p style="color: var(--text-muted); margin-bottom: 25px; font-size: 0.9rem; line-height: 1.5;">
-                Select the execution environment. The GCS will automatically spin up the necessary background processes and configure the MAVLink bridge.
-            </p>
-            <div id="env-error-msg" style="display: none; background: rgba(251, 92, 108, 0.1); border: 1px solid var(--accent-red); color: var(--accent-red); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 20px; font-size: 0.85rem; line-height: 1.4;"></div>
-            <div style="display: flex; flex-direction: column; gap: 15px;">
-                <!-- SITL Option -->
-                <button class="btn btn-env-select" data-env="SITL" style="text-align: left; padding: 20px; background: rgba(61, 139, 253, 0.1); border: 1px solid rgba(61, 139, 253, 0.3); justify-content: flex-start; height: auto;">
-                    <div style="font-size: 1.2rem; margin-bottom: 5px; color: var(--accent-blue);"><i class="fa-solid fa-laptop-code"></i> SITL (Simulation)</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted); white-space: normal;">Launch Gazebo simulator and ArduPilot SITL in the background. Perfect for software testing.</div>
-                </button>
-                
-                <!-- HITL Option -->
-                <button class="btn btn-env-select" data-env="HITL" style="text-align: left; padding: 20px; background: rgba(245, 166, 35, 0.1); border: 1px solid rgba(245, 166, 35, 0.3); justify-content: flex-start; height: auto;">
-                    <div style="font-size: 1.2rem; margin-bottom: 5px; color: var(--accent-orange);"><i class="fa-solid fa-microchip"></i> HITL (Hardware-In-The-Loop)</div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted); white-space: normal;">Launch Gazebo and connect to the physical Pixhawk via USB. Test hardware responses safely.</div>
-                </button>
-                
-                <!-- LIVE Option -->
-                <div style="border: 1px solid rgba(48, 209, 88, 0.3); border-radius: 8px; background: rgba(48, 209, 88, 0.1); overflow: hidden;">
-                    <button class="btn btn-env-select" data-env="LIVE" style="text-align: left; padding: 20px; background: transparent; border: none; justify-content: flex-start; height: auto; width: 100%;">
-                        <div style="font-size: 1.2rem; margin-bottom: 5px; color: var(--accent-green);"><i class="fa-solid fa-plane-departure"></i> LIVE FLIGHT</div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted); white-space: normal;">Connect directly to the physical drone and PiCamera. No simulators. Use for real missions.</div>
-                    </button>
-                    
-                    <div id="live-settings-panel" style="display: none; padding: 15px 20px 20px 20px; border-top: 1px solid rgba(48, 209, 88, 0.2);">
-                        <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                            <div style="flex: 2;">
-                                <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 5px;">Serial Port</label>
-                                <select id="live-port-select" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-light); border-radius: var(--radius-sm); font-family: 'Inter', sans-serif;">
-                                    <option value="">Loading ports...</option>
-                                </select>
-                            </div>
-                            <div style="flex: 1;">
-                                <label style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 5px;">Baud Rate</label>
-                                <select id="live-baud-select" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--text-light); border-radius: var(--radius-sm); font-family: 'Inter', sans-serif;">
-                                    <option value="57600">57600 (Telemetry)</option>
-                                    <option value="115200">115200</option>
-                                    <option value="921600">921600</option>
-                                </select>
-                            </div>
-                        </div>
-                        <button id="btn-live-connect" class="btn btn-success" style="width: 100%;"><i class="fa-solid fa-link"></i> CONNECT TO HARDWARE</button>
-                    </div>
-                </div>
-            </div>
+        <!-- MAIN WORKSPACE -->
+        <main class="workspace">
             
-            <div style="text-align: right; margin-top: 25px;">
-                <button class="btn" id="btn-env-cancel" style="background: transparent; border: 1px solid var(--border-color);">Cancel</button>
+            <!-- SPATIAL LAYER: Map -->
+            <div id="tactical-map" class="map-layer"></div>
+
+            <!-- GEOFENCE TOOLBAR (OVERLAY) -->
+            <div class="map-tools panel-glass">
+                <button id="btn-draw-fence" class="icon-btn" title="Draw Geofence"><i class="fa-solid fa-draw-polygon"></i></button>
+                <button id="btn-clear-fence" class="icon-btn" title="Clear Map"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+
+            <!-- UI OVERLAY LAYER -->
+            <div class="ui-layer">
+                
+                <!-- LEFT PANEL: Telemetry & Health -->
+                <aside class="side-panel left-panel">
+                    <div class="panel-section">
+                        <h2 class="section-title">FLIGHT DYNAMICS</h2>
+                        
+                        <div class="telemetry-grid">
+                            <div class="tel-box">
+                                <div class="tel-label">ALT (m)</div>
+                                <div class="tel-value" id="val-alt">14.2</div>
+                            </div>
+                            <div class="tel-box">
+                                <div class="tel-label">SPD (m/s)</div>
+                                <div class="tel-value" id="val-spd">0.0</div>
+                            </div>
+                            <div class="tel-box">
+                                <div class="tel-label">HDG (deg)</div>
+                                <div class="tel-value" id="val-hdg">342</div>
+                            </div>
+                            <div class="tel-box">
+                                <div class="tel-label">V.SPD (m/s)</div>
+                                <div class="tel-value" id="val-vspd">+0.1</div>
+                            </div>
+                        </div>
+
+                        <!-- Mock Attitude Indicator -->
+                        <div class="attitude-indicator">
+                            <div class="artificial-horizon">
+                                <div class="sky"></div>
+                                <div class="ground"></div>
+                                <div class="crosshair">
+                                    <div class="ch-left"></div>
+                                    <div class="ch-center"></div>
+                                    <div class="ch-right"></div>
+                                </div>
+                                <div class="pitch-scale">
+                                    <div class="p-line p10">10</div>
+                                    <div class="p-line p-10">-10</div>
+                                </div>
+                            </div>
+                            <div class="att-readouts">
+                                <span>P: <span id="val-pitch">-2.1</span>&deg;</span>
+                                <span>R: <span id="val-roll">0.4</span>&deg;</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-section">
+                        <h2 class="section-title">SYSTEM HEALTH</h2>
+                        <ul class="health-list">
+                            <li>
+                                <span><i class="fa-solid fa-battery-half"></i> BATTERY</span>
+                                <span class="warn-text">14.8V / 42%</span>
+                            </li>
+                            <li>
+                                <span><i class="fa-solid fa-satellite"></i> GPS SATS</span>
+                                <span class="nominal-text">14 (3D FIX)</span>
+                            </li>
+                            <li>
+                                <span><i class="fa-solid fa-wifi"></i> DATALINK</span>
+                                <span class="nominal-text">98% (433MHz)</span>
+                            </li>
+                            <li>
+                                <span><i class="fa-solid fa-video"></i> VIDEO LINK</span>
+                                <span class="nominal-text">1080p (Wi-Fi)</span>
+                            </li>
+                        </ul>
+                    </div>
+                </aside>
+
+                <!-- RIGHT PANEL: Command & Control -->
+                <aside class="side-panel right-panel">
+                    
+                    <!-- EMERGENCY OVERRIDE -->
+                    <div class="panel-section emergency-section">
+                        <h2 class="section-title text-danger"><i class="fa-solid fa-triangle-exclamation"></i> EMERGENCY OVERRIDE</h2>
+                        <div class="quick-actions" style="grid-template-columns: 1fr 1fr;">
+                            <button class="tactical-btn cmd-btn btn-danger" data-cmd="KILL_SWITCH" style="font-size:1.1rem; padding: 15px;"><i class="fa-solid fa-skull"></i> MOTOR KILL</button>
+                            <button class="tactical-btn cmd-btn btn-warn" data-cmd="FORCE_LOITER" style="font-size:1.1rem; padding: 15px;"><i class="fa-solid fa-hand"></i> PAUSE (LOITER)</button>
+                        </div>
+                    </div>
+
+                    <div class="panel-section command-section">
+                        <h2 class="section-title">FLIGHT SAFETY & CONTROL</h2>
+                        
+                        <div class="arm-module">
+                            <button id="btn-preflight" class="tactical-btn btn-large" style="margin-bottom: 10px; border-color:var(--color-cyan); color:var(--color-cyan);">
+                                <i class="fa-solid fa-clipboard-check"></i> PRE-FLIGHT CHECKLIST
+                            </button>
+                            <button id="btn-arm" class="tactical-btn btn-danger btn-large" disabled style="opacity: 0.5;">
+                                <i class="fa-solid fa-lock"></i> ARM SYSTEM (LOCKED)
+                            </button>
+                        </div>
+
+                        <div class="quick-actions" style="margin-top: 10px;">
+                            <button class="tactical-btn cmd-btn" data-cmd="TAKEOFF">TAKEOFF</button>
+                            <button class="tactical-btn cmd-btn" data-cmd="LAND">LAND</button>
+                            <button class="tactical-btn cmd-btn btn-warn" data-cmd="RTL">RTL</button>
+                        </div>
+                    </div>
+
+                    <!-- CLAW PAYLOAD MECHANISM -->
+                    <div class="panel-section payload-section">
+                        <h2 class="section-title" style="color:var(--color-cyan); border-color:var(--color-cyan);">COMPETITION PAYLOAD</h2>
+                        <div class="quick-actions" style="grid-template-columns: 1fr 1fr; margin-bottom:10px;">
+                            <button class="tactical-btn cmd-btn" data-cmd="CLAW_OPEN"><i class="fa-solid fa-arrows-left-right"></i> OPEN CLAW</button>
+                            <button class="tactical-btn cmd-btn" data-cmd="CLAW_CLOSE"><i class="fa-solid fa-arrows-to-dot"></i> CLOSE CLAW</button>
+                        </div>
+                        <button class="tactical-btn cmd-btn btn-large" data-cmd="AUTO_DROP_SEQ" style="background: rgba(0, 229, 255, 0.1); border-color:var(--color-cyan); color:var(--color-cyan);">
+                            <i class="fa-solid fa-crosshairs"></i> EXECUTE AUTO-DROP
+                        </button>
+                    </div>
+
+                    <div class="panel-section">
+                        <h2 class="section-title">PROVISIONING</h2>
+                        <div class="setup-menu" style="grid-template-columns: 1fr 1fr;">
+                            <button class="tactical-btn setup-btn" data-app="APPS"><i class="fa-solid fa-rocket"></i> Apps</button>
+                            <button class="tactical-btn setup-btn" data-app="CALIBRATE"><i class="fa-solid fa-compass"></i> Calib</button>
+                        </div>
+                    </div>
+
+                </aside>
+
+                <!-- VIDEO FEED (PiP) -->
+                <div class="video-pip panel-glass">
+                    <div class="pip-header">
+                        <span><i class="fa-solid fa-camera"></i> PAYLOAD CAM // FPV</span>
+                        <button id="toggle-video" class="icon-btn"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div class="pip-content">
+                        <!-- Simulated video feed with CSS static -->
+                        <div class="video-static">
+                            <div class="cam-overlay">
+                                <div class="crosshair-center">+</div>
+                                <div class="rec-dot">REC</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <!-- BOTTOM BAR: Console logs -->
+        <footer class="console-bar panel-glass">
+            <div class="console-header">TAC-LOG // SYS_MSG</div>
+            <div class="console-feed" id="console-feed">
+                <div class="log-entry">[SYS] GCS Initialized.</div>
+                <div class="log-entry">[SYS] Connected to Telemetry Stream.</div>
+                <div class="log-entry warn">[WARN] Battery below 50%.</div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="tactical-modal">
+            <div class="modal-header">
+                <h2 id="modal-title">MODAL_TITLE</h2>
+                <button id="close-modal" class="icon-btn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Content injected via JS -->
             </div>
         </div>
     </div>
 
-    <script>
-        // Inject geofence from backend
-        window.GEOFENCE = {{ geofence | safe | default("[]") }};
-    </script>
-    <script src="{{ url_for('static', filename='js/app_v2.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>

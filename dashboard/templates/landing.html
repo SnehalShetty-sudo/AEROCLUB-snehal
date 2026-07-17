@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AERO-V1 // COMMAND PORTAL</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-dark: #080a0c;
+            --color-amber: #ffaa00;
+            --color-amber-glow: rgba(255, 170, 0, 0.4);
+            --color-cyan: #00e5ff;
+            --font-mono: 'Share Tech Mono', monospace;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: var(--color-amber);
+            font-family: var(--font-mono);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at center, #1a1e24 0%, var(--bg-dark) 70%),
+                linear-gradient(rgba(255, 170, 0, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 170, 0, 0.05) 1px, transparent 1px);
+            background-size: 100% 100%, 50px 50px, 50px 50px;
+            background-position: center center;
+        }
+
+        /* --- DRONE ANIMATION --- */
+        .drone-container {
+            position: relative;
+            width: 600px;
+            height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 40px;
+            /* Hover animation */
+            animation: hover 4s ease-in-out infinite;
+        }
+
+        @keyframes hover {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .drone-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 10px;
+            /* Blend mode to make the dark background of the image blend into our UI */
+            mix-blend-mode: screen;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.8));
+            z-index: 2;
+        }
+
+        .platform-glow {
+            position: absolute;
+            bottom: -20px;
+            width: 300px;
+            height: 20px;
+            background: radial-gradient(ellipse at center, var(--color-amber-glow) 0%, transparent 70%);
+            border-radius: 50%;
+            z-index: 1;
+            animation: shadow-pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes shadow-pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(0.8); opacity: 0.3; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        /* --- MENU --- */
+        .portal-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 400px;
+            z-index: 10;
+        }
+
+        .portal-btn {
+            background: rgba(12, 15, 18, 0.8);
+            border: 1px solid var(--color-amber);
+            color: var(--color-amber);
+            font-family: var(--font-mono);
+            font-size: 1.2rem;
+            padding: 15px 20px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            text-decoration: none;
+            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .portal-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 170, 0, 0.2), transparent);
+            transition: left 0.4s;
+        }
+
+        .portal-btn:hover {
+            background: rgba(255, 170, 0, 0.15);
+            box-shadow: 0 0 15px var(--color-amber-glow);
+            transform: scale(1.02);
+        }
+
+        .portal-btn:hover::before {
+            left: 100%;
+        }
+
+        .portal-btn.primary {
+            border-color: var(--color-cyan);
+            color: var(--color-cyan);
+        }
+
+        .portal-btn.primary:hover {
+            background: rgba(0, 229, 255, 0.15);
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+        }
+
+        .header-title {
+            position: absolute;
+            top: 40px;
+            font-size: 2rem;
+            letter-spacing: 5px;
+            text-shadow: 0 0 10px var(--color-amber-glow);
+            text-align: center;
+        }
+        .header-subtitle {
+            font-size: 1rem;
+            color: var(--color-cyan);
+            letter-spacing: 2px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-title">
+        AERO-V1 COMMAND SYSTEM
+        <div class="header-subtitle">SECURE TERMINAL ACCESS</div>
+    </div>
+
+    <!-- Drone Display -->
+    <div class="drone-container">
+        <img src="drone.jpg" alt="AERO-V1 Hexacopter" class="drone-image">
+        <div class="platform-glow"></div>
+    </div>
+
+    <!-- Main Menu -->
+    <div class="portal-menu">
+        <a href="index.html" class="portal-btn primary">
+            <span><i class="fa-solid fa-satellite-dish"></i> ENTER GCS</span>
+            <i class="fa-solid fa-chevron-right"></i>
+        </a>
+        <button class="portal-btn" onclick="alert('Module offline.')">
+            <span><i class="fa-solid fa-stethoscope"></i> SYS DIAGNOSTICS</span>
+            <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button class="portal-btn" onclick="alert('Module offline.')">
+            <span><i class="fa-solid fa-folder-tree"></i> MISSION ARCHIVE</span>
+            <i class="fa-solid fa-chevron-right"></i>
+        </button>
+        <button class="portal-btn" onclick="alert('Access denied.')">
+            <span><i class="fa-solid fa-shield-halved"></i> SECURITY CONFIG</span>
+            <i class="fa-solid fa-lock"></i>
+        </button>
+    </div>
+
+</body>
+</html>

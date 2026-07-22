@@ -25,19 +25,25 @@ class AppManager:
         self._discover_apps()
 
     def _discover_apps(self):
-        """Register all known apps."""
-        # Import and register each app
-        try:
-            from apps.idle_app import IdleApp
-            self._available_apps["idle"] = IdleApp
-        except ImportError as e:
-            logger.error(f"Failed to load IdleApp: {e}")
+        """Dynamically register all mission apps in the apps/ directory."""
+        import os
+        import importlib
+        from apps.base_app import BaseMissionApp
 
-        try:
-            from apps.search_rescue import SearchRescueApp
-            self._available_apps["search_rescue"] = SearchRescueApp
-        except ImportError as e:
-            logger.warning(f"SearchRescueApp not available: {e}")
+        apps_dir = os.path.dirname(os.path.abspath(__file__))
+        for filename in os.listdir(apps_dir):
+            if filename.endswith(".py") and filename not in ("__init__.py", "base_app.py", "app_manager.py"):
+                module_name = filename[:-3] # strip .py
+                try:
+                    module = importlib.import_module(f"apps.{module_name}")
+                    for attr_name in dir(module):
+                        attr = getattr(module, attr_name)
+                        if isinstance(attr, type) and issubclass(attr, BaseMissionApp) and attr is not BaseMissionApp:
+                            app_id = module_name.replace("_app", "")
+                            self._available_apps[app_id] = attr
+                            logger.info(f"Dynamically registered app: '{app_id}' -> {attr.__name__}")
+                except Exception as e:
+                    logger.error(f"Failed to dynamically load app module '{module_name}': {e}")
 
         logger.info(f"Discovered {len(self._available_apps)} apps: {list(self._available_apps.keys())}")
 

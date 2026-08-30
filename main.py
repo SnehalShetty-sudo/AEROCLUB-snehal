@@ -135,15 +135,10 @@ def start_hardware():
         return False
 
     # ── 2. Camera Setup ──
-    # Since ROS2 is broken on this PC, we'll force MockCamera if is_mock is true
     if is_mock or ("tcp" in mav_conn or "udp" in mav_conn):
-        logger.info("Initializing Mock/ROS2 Camera...")
-        global_cam = ROS2Camera(ROS2_IMAGE_TOPIC)
-        # If it's real ROS2, start the thread
-        if hasattr(global_cam, 'subscription'): 
-            rclpy.init()
-            global_ros_thread = threading.Thread(target=rclpy.spin, args=(global_cam,), daemon=True)
-            global_ros_thread.start()
+        logger.info("Initializing MJPEG Camera from WSL bridge (localhost:8080)...")
+        global_cam = MJPEGCamera("http://127.0.0.1:8080/stream")
+        time.sleep(1)
     else:
         try:
             from picamera2 import Picamera2

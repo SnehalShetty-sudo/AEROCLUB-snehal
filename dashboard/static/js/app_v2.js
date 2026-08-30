@@ -610,6 +610,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 return; // Stop here, wait for connect button
             }
             
+            // ADDC Interception
+            if (mode === 'SITL' && appId === 'addc_reconnaissance') {
+                hideEnvModal();
+                const addcModal = document.getElementById('addc-sitl-modal');
+                if (addcModal) {
+                    addcModal.style.display = 'flex';
+                    window._addc_pending_app_id = appId;
+                }
+                return;
+            }
+            
             // For SITL/HITL, start immediately
             await startEnvironment(mode, appId, btn);
         });
@@ -769,4 +780,240 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // ==============================================================================
+    // ADDC-Specific Logic
+    // ==============================================================================
+    
+    // ADDC Modal Handlers
+    const addcModal = document.getElementById('addc-sitl-modal');
+    const btnAddcCancel = document.getElementById('btn-addc-sitl-cancel');
+    const btnAddcDone = document.getElementById('btn-addc-sitl-done');
+    
+    if (btnAddcCancel) {
+        btnAddcCancel.addEventListener('click', () => {
+            addcModal.style.display = 'none';
+            window._addc_pending_app_id = null;
+        });
+    }
+    
+    if (btnAddcDone) {
+        btnAddcDone.addEventListener('click', async () => {
+            const originalHtml = btnAddcDone.innerHTML;
+            btnAddcDone.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Connecting...`;
+            btnAddcDone.disabled = true;
+            
+            try {
+                // 1. Tell GCS backend to start MAVLink and camera connection to SITL
+                addLog("Connecting GCS hardware to SITL bridge...", "warn");
+                const envRes = await fetch('/api/env/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({mode: 'SITL'})
+                });
+                const envResult = await envRes.json();
+                
+                if (!envResult.success) {
+                    addLog("GCS hardware failed to connect to SITL: " + (envResult.error || "Unknown error"), "error");
+                    alert("GCS hardware failed to connect to SITL. Make sure ArduPilot is fully initialized and click Continue again.");
+                    btnAddcDone.innerHTML = originalHtml;
+                    btnAddcDone.disabled = false;
+                    return;
+                }
+                
+                addLog("GCS hardware successfully connected to SITL bridge.", "success");
+                addcModal.style.display = 'none';
+                
+                // 2. Load the App UI
+                if (window._addc_pending_app_id) {
+                    await loadApp(window._addc_pending_app_id);
+                }
+            } catch (err) {
+                addLog("Error connecting hardware: " + err, "error");
+                btnAddcDone.innerHTML = originalHtml;
+                btnAddcDone.disabled = false;
+            }
+        });
+    }
+    
+    document.querySelectorAll('.addc-start-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const stepId = btn.getAttribute('data-step');
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Starting...`;
+            btn.disabled = true;
+            socket.emit('addc_start_step', {step_id: stepId});
+        });
+    });
+    
+    document.querySelectorAll('.addc-kill-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const stepId = btn.getAttribute('data-step');
+            socket.emit('addc_kill_step', {step_id: stepId});
+            
+            // Revert UI manually in case we don't get an event
+            const row = document.getElementById(`addc-step-${stepId}`);
+            if (row) {
+                const startBtn = row.querySelector('.addc-start-btn');
+                const statusSpan = row.querySelector('.step-status');
+                startBtn.innerHTML = `<i class="fa-solid fa-play"></i> Start`;
+                startBtn.disabled = false;
+                statusSpan.innerHTML = `<i class="fa-regular fa-circle"></i>`;
+                statusSpan.style.color = 'var(--text-muted)';
+                btn.disabled = true;
+            }
+        });
+    });
+    
+    const btnKillAll = document.getElementById('btn-addc-kill-all');
+    if (btnKillAll) {
+        btnKillAll.addEventListener('click', () => {
+            socket.emit('addc_kill_all');
+            document.querySelectorAll('.addc-start-btn').forEach(b => { b.disabled = false; b.innerHTML = `<i class="fa-solid fa-play"></i> Start`; });
+            document.querySelectorAll('.addc-kill-btn').forEach(b => b.disabled = true);
+            document.querySelectorAll('.step-status').forEach(s => { s.innerHTML = `<i class="fa-regular fa-circle"></i>`; s.style.color = 'var(--text-muted)'; });
+            document.getElementById('btn-addc-sitl-done').disabled = true;
+        });
+    }
+    
+    // Listen for ADDC events
+    socket.on('addc_step_ready', (data) => {
+        const stepId = data.step_id;
+        const row = document.getElementById(`addc-step-${stepId}`);
+        if (row) {
+            const statusSpan = row.querySelector('.step-status');
+            const startBtn = row.querySelector('.addc-start-btn');
+            const killBtn = row.querySelector('.addc-kill-btn');
+            
+            statusSpan.innerHTML = `<i class="fa-solid fa-check"></i>`;
+            statusSpan.style.color = 'var(--accent-green)';
+            startBtn.innerHTML = `<i class="fa-solid fa-check"></i> Started`;
+            startBtn.disabled = true;
+            killBtn.disabled = false;
+            
+            // Enable next step
+            if (stepId === 'gazebo') {
+                const nextRow = document.getElementById('addc-step-sitl');
+                if (nextRow) { nextRow.style.opacity = '1'; nextRow.querySelector('.addc-start-btn').disabled = false; }
+            } else if (stepId === 'sitl') {
+                const nextRow = document.getElementById('addc-step-ros_bridge');
+                if (nextRow) { nextRow.style.opacity = '1'; nextRow.querySelector('.addc-start-btn').disabled = false; }
+            } else if (stepId === 'ros_bridge') {
+                const nextRow = document.getElementById('addc-step-mjpeg_bridge');
+                if (nextRow) { nextRow.style.opacity = '1'; nextRow.querySelector('.addc-start-btn').disabled = false; }
+            } else if (stepId === 'mjpeg_bridge') {
+                // Done! Enable continue button
+                if (btnAddcDone) btnAddcDone.disabled = false;
+            }
+        }
+    });
+    
+    // Mission State Updates
+    socket.on('addc_state_update', (data) => {
+        const wpEl = document.getElementById('app-stat-addc_wp');
+        const stateEl = document.getElementById('app-stat-addc_state');
+        const qrEl = document.getElementById('app-stat-addc_qr');
+        const timeEl = document.getElementById('app-stat-addc_time');
+        
+        if (stateEl) stateEl.textContent = data.state;
+        if (wpEl) wpEl.textContent = `${data.wp_current}/${data.wp_total}`;
+        if (qrEl) {
+            qrEl.textContent = data.qr_status;
+            if (data.qr_status.startsWith('Decoded')) {
+                qrEl.style.color = 'var(--accent-green)';
+                qrEl.style.textShadow = '0 0 20px rgba(48, 209, 88, 0.4)';
+            }
+        }
+        if (timeEl) {
+            timeEl.textContent = `${data.time_remaining}s`;
+            if (data.time_remaining < 60) timeEl.style.color = 'var(--accent-red)';
+        }
+    });
+
+    // RADAR AND MAP OVERRIDE (ADDC specific trail logic)
+    let flightTrail = [];
+    const MAX_TRAIL_POINTS = 600;
+    
+    // Override drawRadar
+    window.drawRadar = function(droneLat, droneLon, heading) {
+        flightTrail.push({lat: droneLat, lon: droneLon});
+        if (flightTrail.length > MAX_TRAIL_POINTS) flightTrail.shift();
+        
+        const canvas = document.getElementById('radar-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+        
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < w; i += 20) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+        }
+
+        let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+        window.GEOFENCE.forEach(pt => {
+            if (pt[0] < minLat) minLat = pt[0];
+            if (pt[0] > maxLat) maxLat = pt[0];
+            if (pt[1] < minLon) minLon = pt[1];
+            if (pt[1] > maxLon) maxLon = pt[1];
+        });
+
+        const latPad = (maxLat - minLat) * 0.1;
+        const lonPad = (maxLon - minLon) * 0.1;
+        minLat -= latPad; maxLat += latPad;
+        minLon -= lonPad; maxLon += lonPad;
+
+        const latRange = maxLat - minLat;
+        const lonRange = maxLon - minLon;
+
+        function getXY(lat, lon) {
+            const x = ((lon - minLon) / lonRange) * w;
+            const y = h - (((lat - minLat) / latRange) * h);
+            return {x, y};
+        }
+
+        if (window.GEOFENCE && window.GEOFENCE.length > 0) {
+            ctx.beginPath();
+            window.GEOFENCE.forEach((pt, i) => {
+                const pos = getXY(pt[0], pt[1]);
+                if (i === 0) ctx.moveTo(pos.x, pos.y);
+                else ctx.lineTo(pos.x, pos.y);
+            });
+            ctx.closePath();
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(231, 76, 60, 0.15)';
+            ctx.fill();
+        }
+
+        if (flightTrail.length > 1) {
+            ctx.beginPath();
+            flightTrail.forEach((pt, i) => {
+                const pos = getXY(pt.lat, pt.lon);
+                if (i === 0) ctx.moveTo(pos.x, pos.y);
+                else ctx.lineTo(pos.x, pos.y);
+            });
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        const dronePos = getXY(droneLat, droneLon);
+        ctx.save();
+        ctx.translate(dronePos.x, dronePos.y);
+        ctx.rotate(heading * Math.PI / 180);
+        
+        ctx.beginPath();
+        ctx.moveTo(0, -10);
+        ctx.lineTo(8, 8);
+        ctx.lineTo(0, 4);
+        ctx.lineTo(-8, 8);
+        ctx.closePath();
+        ctx.fillStyle = '#34d399';
+        ctx.fill();
+        ctx.restore();
+    }
 });

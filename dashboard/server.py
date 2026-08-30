@@ -224,7 +224,21 @@ def api_env_start():
         
     logger.info(f"API request to start environment: {mode} (port={port}, baud={baud})")
     try:
-        success = _env_manager.start_env(mode, port=port, baud=baud)
+        # Check if ADDC app is active
+        is_addc = False
+        if _app_manager:
+            active_info = _app_manager.get_active_app_info()
+            if active_info and active_info.get("id") == "addc_reconnaissance":
+                is_addc = True
+
+        if is_addc and mode == 'SITL':
+            # Skip running start_sitl.bat since user manually did the 4-step provisioning
+            # Configure connection strings directly for the multiplexed MAVLink and MJPEG
+            os.environ["DRONE_MOCK"] = "false"
+            os.environ["MAV_CONNECTION"] = "udp:0.0.0.0:14550"
+            success = True
+        else:
+            success = _env_manager.start_env(mode, port=port, baud=baud)
         
         if success and _on_hw_start:
             # Start MAVLink & Camera
@@ -343,6 +357,44 @@ def api_calibration_continue():
         _calibrator.continue_calibration()
         return jsonify({"success": True})
     return jsonify({"success": False, "error": "No calibration running"})
+
+
+# ═══════════════════════════════════════════════
+#  ADDC Launcher & State Endpoints
+# ═══════════════════════════════════════════════
+
+_addc_launcher = None
+
+def init_addc_launcher():
+    global _addc_launcher
+    from provisioning.addc_launcher import ADDCSitlLauncher
+    if not _addc_launcher:
+        _addc_launcher = ADDCSitlLauncher(socketio=socketio)
+        _addc_launcher.create_steps()
+    return _addc_launcher
+
+@socketio.on('addc_start_step')
+def handle_addc_start_step(data):
+    step_id = data.get('step_id')
+    launcher = init_addc_launcher()
+    launcher.start_step(step_id)
+
+@socketio.on('addc_kill_step')
+def handle_addc_kill_step(data):
+    step_id = data.get('step_id')
+    if _addc_launcher:
+        _addc_launcher.kill_step(step_id)
+
+@socketio.on('addc_kill_all')
+def handle_addc_kill_all():
+    if _addc_launcher:
+        _addc_launcher.kill_all()
+
+@app.route('/addc/state', methods=['POST'])
+def addc_state():
+    data = request.get_json()
+    socketio.emit('addc_state_update', data)
+    return '', 204
 
 
 # ═══════════════════════════════════════════════

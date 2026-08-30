@@ -513,6 +513,75 @@ FLIGHT_ALT    = 15.0
         </div>
     </div>
 
+    <!-- ADDC SITL Sequential Launcher Modal -->
+    <div id="addc-sitl-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 10000; justify-content: center; align-items: center;">
+        <div style="background: var(--bg-darker); border: 1px solid var(--border-color); border-radius: 12px; width: 650px; max-width: 90vw; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+            <h2 style="margin-top: 0; font-weight: 500;"><i class="fa-solid fa-server" style="color: var(--accent-blue);"></i> ADDC SITL Environment Provisioning</h2>
+            <p style="color: var(--text-muted); margin-bottom: 25px; font-size: 0.9rem; line-height: 1.5;">
+                Launch the environment sequentially. Wait for each step to complete before starting the next.
+            </p>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px;" id="addc-steps-container">
+                <!-- Step 1 -->
+                <div class="addc-step-row" id="addc-step-gazebo" style="display: flex; align-items: center; justify-content: space-between; padding: 15px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 8px;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 1.05rem;">1. Gazebo Sim</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">gz sim -v4 -r iris_runway.sdf</div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span class="step-status" style="width: 20px; text-align: center; color: var(--text-muted);"><i class="fa-regular fa-circle"></i></span>
+                        <button class="btn btn-primary addc-start-btn" data-step="gazebo" style="width: 80px;"><i class="fa-solid fa-play"></i> Start</button>
+                        <button class="btn btn-danger addc-kill-btn" data-step="gazebo" style="width: 80px;" disabled><i class="fa-solid fa-stop"></i> Kill</button>
+                    </div>
+                </div>
+                <!-- Step 2 -->
+                <div class="addc-step-row" id="addc-step-sitl" style="display: flex; align-items: center; justify-content: space-between; padding: 15px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 8px; opacity: 0.5;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 1.05rem;">2. ArduPilot SITL</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">sim_vehicle.py --out=udp:127.0.0.1:14550 --out=udp:127.0.0.1:14551</div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span class="step-status" style="width: 20px; text-align: center; color: var(--text-muted);"><i class="fa-regular fa-circle"></i></span>
+                        <button class="btn btn-primary addc-start-btn" data-step="sitl" style="width: 80px;" disabled><i class="fa-solid fa-play"></i> Start</button>
+                        <button class="btn btn-danger addc-kill-btn" data-step="sitl" style="width: 80px;" disabled><i class="fa-solid fa-stop"></i> Kill</button>
+                    </div>
+                </div>
+                <!-- Step 3 -->
+                <div class="addc-step-row" id="addc-step-ros_bridge" style="display: flex; align-items: center; justify-content: space-between; padding: 15px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 8px; opacity: 0.5;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 1.05rem;">3. ROS 2 Bridge</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">ros_gz_bridge parameter_bridge</div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span class="step-status" style="width: 20px; text-align: center; color: var(--text-muted);"><i class="fa-regular fa-circle"></i></span>
+                        <button class="btn btn-primary addc-start-btn" data-step="ros_bridge" style="width: 80px;" disabled><i class="fa-solid fa-play"></i> Start</button>
+                        <button class="btn btn-danger addc-kill-btn" data-step="ros_bridge" style="width: 80px;" disabled><i class="fa-solid fa-stop"></i> Kill</button>
+                    </div>
+                </div>
+                <!-- Step 4 -->
+                <div class="addc-step-row" id="addc-step-mjpeg_bridge" style="display: flex; align-items: center; justify-content: space-between; padding: 15px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 8px; opacity: 0.5;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 1.05rem;">4. MJPEG Camera Bridge</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">python3 ros_mjpeg_bridge.py</div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span class="step-status" style="width: 20px; text-align: center; color: var(--text-muted);"><i class="fa-regular fa-circle"></i></span>
+                        <button class="btn btn-primary addc-start-btn" data-step="mjpeg_bridge" style="width: 80px;" disabled><i class="fa-solid fa-play"></i> Start</button>
+                        <button class="btn btn-danger addc-kill-btn" data-step="mjpeg_bridge" style="width: 80px;" disabled><i class="fa-solid fa-stop"></i> Kill</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; margin-top: 25px;">
+                <button class="btn btn-danger" id="btn-addc-kill-all"><i class="fa-solid fa-skull"></i> Kill All (Teardown)</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn" id="btn-addc-sitl-cancel" style="background: transparent; border: 1px solid var(--border-color);">Close</button>
+                    <button class="btn btn-success" id="btn-addc-sitl-done" disabled><i class="fa-solid fa-check"></i> Continue to GCS</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Inject geofence from backend
         window.GEOFENCE = {{ geofence | safe | default("[]") }};

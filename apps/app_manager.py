@@ -38,6 +38,12 @@ class AppManager:
             self._available_apps["search_rescue"] = SearchRescueApp
         except ImportError as e:
             logger.warning(f"SearchRescueApp not available: {e}")
+            
+        try:
+            from apps.addc_app import ADDCReconApp
+            self._available_apps["addc_reconnaissance"] = ADDCReconApp
+        except ImportError as e:
+            logger.warning(f"ADDCReconApp not available: {e}")
 
         logger.info(f"Discovered {len(self._available_apps)} apps: {list(self._available_apps.keys())}")
 
